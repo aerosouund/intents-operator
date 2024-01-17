@@ -3,6 +3,8 @@ package intents_reconcilers
 import (
 	"context"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
+	v12 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"testing"
 
 	"github.com/otterize/intents-operator/src/operator/api/v1alpha3"
@@ -46,12 +48,29 @@ func (s *LinkerdReconcilerTestSuite) TestAnything() {
 		},
 	}
 
-	s.admin.Reconcile(context.Background(), reconcile.Request{
+	// This object will be returned to the reconciler's Get call when it calls for a CRD named "servers.policy.linkerd.io"
+	crd := &v12.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "servers.policy.linkerd.io",
+		},
+	}
+
+	// The matchers here make it check for a CRD called "servers.policy.linkerd.io"
+	s.Client.EXPECT().Get(gomock.Any(), types.NamespacedName{Name: "servers.policy.linkerd.io"}, gomock.AssignableToTypeOf(crd)).Do(
+		func(ctx context.Context, key types.NamespacedName, obj *v12.CustomResourceDefinition, opts ...v1.GetOptions) error {
+			// Copy the struct into the target pointer struct
+			*obj = *crd
+			return nil
+		})
+
+	res, err := s.admin.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "test",
 			Namespace: "test",
 		},
 	})
+	s.Require().NoError(err)
+	s.Require().Empty(res)
 }
 
 func TestLinkerdReconcilerSuite(t *testing.T) {
