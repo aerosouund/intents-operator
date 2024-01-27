@@ -244,17 +244,18 @@ func (ldm *LinkerdManager) createResources(
 		if intent.Type != "" && intent.Type != otterizev1alpha3.IntentTypeHTTP && intent.Port != 0 { // this will skip non http ones, db for example, skip port doesnt exist as well
 			continue
 		}
-		shouldCreatePolicy, err := protected_services.IsServerEnforcementEnabledDueToProtectionOrDefaultState( //TODO:  check what that does
+		_, err := protected_services.IsServerEnforcementEnabledDueToProtectionOrDefaultState( //TODO:  check what that does
 			ctx, ldm.Client, intent.GetTargetServerName(), intent.GetTargetServerNamespace(clientIntents.Namespace), ldm.enforcementDefaultState)
 		if err != nil {
 			return nil, err
 		}
 
-		if !shouldCreatePolicy {
-			logrus.Infof("Enforcement is disabled globally and server is not explicitly protected, skipping network policy creation for server %s in namespace %s", intent.GetTargetServerName(), intent.GetTargetServerNamespace(clientIntents.Namespace))
-			ldm.recorder.RecordNormalEventf(clientIntents, consts.ReasonEnforcementDefaultOff, "Enforcement is disabled globally and called service '%s' is not explicitly protected using a ProtectedService resource, network policy creation skipped", intent.Name)
-			continue
-		}
+		// REVERT THIS
+		// if !shouldCreatePolicy {
+		// 	logrus.Infof("Enforcement is disabled globally and server is not explicitly protected, skipping network policy creation for server %s in namespace %s", intent.GetTargetServerName(), intent.GetTargetServerNamespace(clientIntents.Namespace))
+		// 	ldm.recorder.RecordNormalEventf(clientIntents, consts.ReasonEnforcementDefaultOff, "Enforcement is disabled globally and called service '%s' is not explicitly protected using a ProtectedService resource, linkerd policy creation skipped", intent.Name)
+		// 	continue
+		// }
 
 		if !ldm.enableLinkerdPolicyCreation {
 			ldm.recorder.RecordNormalEvent(clientIntents, consts.ReasonIstioPolicyCreationDisabled, "Linkerd policy creation is disabled, creation skipped")
