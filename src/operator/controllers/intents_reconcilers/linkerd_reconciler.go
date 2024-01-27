@@ -45,7 +45,7 @@ func NewLinkerdReconciler(c client.Client,
 func (r *LinkerdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logrus.Info("Starting linkerd reconcile logic")
 
-	installed, err := linkerdmanager.IsLinkerdServerInstalled(ctx, r.Client)
+	installed, err := linkerdmanager.IsLinkerdInstalled(ctx, r.Client)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -70,7 +70,7 @@ func (r *LinkerdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	logrus.Infof("Reconciling Linkerd authorization policies for service %s in namespace %s",
+	logrus.Infof("Reconciling Linkerd policies for service %s in namespace %s",
 		intents.Spec.Service.Name, req.Namespace)
 
 	if !intents.DeletionTimestamp.IsZero() {
@@ -111,7 +111,7 @@ func (r *LinkerdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	err = r.linkerdManager.Create(ctx, intents, clientServiceAccountName) // the injectable recorder is null pointer
+	err = r.linkerdManager.Create(ctx, intents, clientServiceAccountName)
 	if err != nil {
 		if k8serrors.IsConflict(err) {
 			return ctrl.Result{Requeue: true}, nil

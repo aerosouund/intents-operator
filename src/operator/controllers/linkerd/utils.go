@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	LinkerdProxyContainerName = "linkerd-proxy"
+	LinkerdProxyKey = "linkerd.io/inject"
 )
 
 func (ldm *LinkerdManager) getContainerWithIntentPort(intent otterizev1alpha3.Intent, pod *corev1.Pod) *corev1.Container {
@@ -28,15 +28,14 @@ func (ldm *LinkerdManager) getContainerWithIntentPort(intent otterizev1alpha3.In
 }
 
 func IsPodPartOfLinkerdMesh(pod corev1.Pod) bool {
-	for _, container := range pod.Spec.Containers {
-		if container.Name == LinkerdProxyContainerName {
-			return true
-		}
+	linkerdEnabled, ok := pod.Annotations[LinkerdProxyKey]
+	if ok && linkerdEnabled == "enabled" {
+		return true
 	}
 	return false
 }
 
-func IsLinkerdServerInstalled(ctx context.Context, client client.Client) (bool, error) {
+func IsLinkerdInstalled(ctx context.Context, client client.Client) (bool, error) {
 	// turn to check for all necessary crds
 	linkerdServerCRDName := "servers.policy.linkerd.io"
 	crd := apiextensionsv1.CustomResourceDefinition{}
