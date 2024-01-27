@@ -141,6 +141,8 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		existingPolicies   authpolicy.AuthorizationPolicyList
 		existingServers    linkerdserver.ServerList
 		existingHttpRoutes authpolicy.HTTPRouteList
+		existingNetAuth    authpolicy.NetworkAuthenticationList
+		existingMTLS       authpolicy.MeshTLSAuthenticationList
 	)
 	// TODO: the struct method works here
 	// TODO: netauth and meshtls
@@ -168,6 +170,22 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		return err
 	}
 
+	err = ldm.Client.List(ctx,
+		&existingNetAuth,
+		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: clientFormattedIdentity})
+	if err != nil {
+		ldm.recorder.RecordWarningEventf(intents, ReasonGettingLinkerdPolicyFailed, "Could not get Linkerd net auth: %s", err.Error())
+		return err
+	}
+
+	err = ldm.Client.List(ctx,
+		&existingMTLS,
+		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: clientFormattedIdentity})
+	if err != nil {
+		ldm.recorder.RecordWarningEventf(intents, ReasonGettingLinkerdPolicyFailed, "Could not get Linkerd meshtls auth: %s", err.Error())
+		return err
+	}
+
 	for _, existingPolicy := range existingPolicies.Items {
 		err := ldm.Client.Delete(ctx, &existingPolicy)
 		if err != nil {
@@ -184,6 +202,20 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 
 	for _, existingRoute := range existingHttpRoutes.Items {
 		err := ldm.Client.Delete(ctx, &existingRoute)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, existingNetworkAuth := range existingNetAuth.Items {
+		err := ldm.Client.Delete(ctx, &existingNetworkAuth)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, existingMTLSAuth := range existingMTLS.Items {
+		err := ldm.Client.Delete(ctx, &existingMTLSAuth)
 		if err != nil {
 			return err
 		}
