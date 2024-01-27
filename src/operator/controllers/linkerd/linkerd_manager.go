@@ -39,7 +39,7 @@ const (
 	ReasonUpdatingLinkerdPolicyFailed                 = "UpdatingLinkerdPolicyFailed"
 	FullServiceAccountName                            = "%s.%s.serviceaccount.identity.linkerd.cluster.local"
 	NetworkAuthenticationNameTemplate                 = "network-auth-for-probe-routes"
-	HTTPRouteNameTemplate                             = "http-route-for-%s-port-%d-path-%s"
+	HTTPRouteNameTemplate                             = "http-route-for-%s-port-%d-%s"
 	LinkerdMeshTLSAuthenticationKindName              = "MeshTLSAuthentication"
 	LinkerdServerKindName                             = "Server"
 	LinkerdHTTPRouteKindName                          = "HTTPRoute"
@@ -145,7 +145,6 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		existingMTLS       authpolicy.MeshTLSAuthenticationList
 	)
 	// TODO: the struct method works here
-	// TODO: netauth and meshtls
 	err := ldm.Client.List(ctx,
 		&existingPolicies,
 		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: clientFormattedIdentity})
@@ -334,10 +333,9 @@ func (ldm *LinkerdManager) createResources(
 			}
 
 			if probePath != "" {
-				httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, intent.Port, probePath)
-				httpRouteName = strings.Replace(httpRouteName, "/", "slash", -1)
+				httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, intent.Port, generateRandomString(8))
 				probePathRoute, shouldCreateRoute, err := ldm.shouldCreateHTTPRoute(ctx, *clientIntents,
-					intent, httpRouteName)
+					intent, probePath)
 				if err != nil {
 					return nil, err
 				}
@@ -379,10 +377,9 @@ func (ldm *LinkerdManager) createResources(
 			}
 
 			for _, httpResource := range intent.HTTPResources {
-				httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, intent.Port, httpResource.Path)
-				httpRouteName = strings.TrimSuffix(strings.Replace(strings.Replace(httpRouteName, "/", "slash-", -1), "*", "star-", -1), "-")
+				httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, intent.Port, generateRandomString(8))
 				route, shouldCreateRoute, err := ldm.shouldCreateHTTPRoute(ctx, *clientIntents,
-					intent, httpRouteName)
+					intent, httpResource.Path)
 				if err != nil {
 					return nil, err
 				}
@@ -542,16 +539,21 @@ func (ldm *LinkerdManager) shouldCreateServer(ctx context.Context, intents otter
 func (ldm *LinkerdManager) shouldCreateHTTPRoute(ctx context.Context,
 	intents otterizev1alpha3.ClientIntents,
 	intent otterizev1alpha3.Intent,
-	httpRouteName string,
+	path string,
 ) (*authpolicy.HTTPRoute, bool, error) {
+	clientFormattedIdentity := v1alpha2.GetFormattedOtterizeIdentity(intents.Spec.Service.Name, intents.Namespace)
 	routes := &authpolicy.HTTPRouteList{}
-	err := ldm.Client.List(ctx, routes, &client.ListOptions{Namespace: intents.Namespace})
+	err := ldm.Client.List(ctx, routes, &client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: clientFormattedIdentity})
 	if err != nil {
 		return nil, false, err
 	}
 	for _, route := range routes.Items {
-		if route.Name == httpRouteName { // TODO: validate this better, just the name isnt enough
-			return &route, false, nil
+		for _, rule := range route.Spec.Rules {
+			for _, match := range rule.Matches {
+				if *match.Path.Value == path {
+					return &route, false, nil
+				}
+			}
 		}
 	}
 	return nil, true, nil
@@ -572,7 +574,6 @@ func (ldm *LinkerdManager) shouldCreateAuthPolicy(ctx context.Context,
 	for _, policy := range authPolicies.Items {
 		if policy.Spec.TargetRef.Name == v1beta1.ObjectName(targetName) && policy.Spec.TargetRef.Kind == v1beta1.Kind(targetRefKind) {
 			for _, authRef := range policy.Spec.RequiredAuthenticationRefs {
-				// v1beta1.ObjectName("meshtls-for-client-"+intents.Spec.Service.Name)
 				if authRef.Kind == v1beta1.Kind(authRefKind) && authRef.Name == v1beta1.ObjectName(authRefName) { // TODO: check for authrefname too
 					logrus.Infof("not creating policy for policy with details, %s, %s", policy.Spec.TargetRef.Name, authRef.Name)
 					return &policy, false, nil

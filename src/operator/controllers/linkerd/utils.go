@@ -2,6 +2,8 @@ package linkerdmanager
 
 import (
 	"context"
+	"math/rand"
+	"time"
 
 	otterizev1alpha3 "github.com/otterize/intents-operator/src/operator/api/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
@@ -49,4 +51,16 @@ func IsLinkerdInstalled(ctx context.Context, client client.Client) (bool, error)
 	}
 
 	return true, nil
+}
+
+func generateRandomString(length int) string {
+	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	rand.Seed(time.Now().UnixNano())
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+
+	return string(b)
 }
