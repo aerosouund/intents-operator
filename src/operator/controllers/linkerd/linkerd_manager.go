@@ -472,7 +472,7 @@ func (ldm *LinkerdManager) getLivenessProbePath(ctx context.Context, intents ott
 	}
 
 	// TODO: check of the other probe types will break
-	if c.LivenessProbe.HTTPGet != nil {
+	if c.LivenessProbe != nil && c.LivenessProbe.HTTPGet != nil {
 		return c.LivenessProbe.HTTPGet.Path, nil
 	}
 	return "", nil
