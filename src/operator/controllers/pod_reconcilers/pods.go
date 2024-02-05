@@ -3,6 +3,7 @@ package pod_reconcilers
 import (
 	"context"
 	"fmt"
+
 	otterizev1alpha3 "github.com/otterize/intents-operator/src/operator/api/v1alpha3"
 	"github.com/otterize/intents-operator/src/operator/controllers/istiopolicy"
 	"github.com/otterize/intents-operator/src/prometheus"
@@ -87,6 +88,11 @@ func (p *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err)
 	}
+
+	// err = p.handleLinkerdPolicy(ctx, pod, serviceID)
+	// if err != nil {
+	// 	return ctrl.Result{}, errors.Wrap(err)
+	// }
 
 	return ctrl.Result{}, nil
 }
