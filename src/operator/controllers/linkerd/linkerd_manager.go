@@ -3,7 +3,6 @@ package linkerdmanager
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/amit7itz/goset"
 	authpolicy "github.com/linkerd/linkerd2/controller/gen/apis/policy/v1alpha1"
@@ -363,8 +362,7 @@ func (ldm *LinkerdManager) createResources(
 				if shouldCreatePolicy {
 					policy = ldm.generateAuthorizationPolicy(*clientIntents, intent, httpRouteName,
 						LinkerdHTTPRouteKindName,
-						LinkerdNetAuthKindName,
-						addPath(probePath))
+						LinkerdNetAuthKindName)
 
 					err = ldm.Client.Create(ctx, policy)
 					if err != nil {
@@ -389,12 +387,11 @@ func (ldm *LinkerdManager) createResources(
 						httpRouteName,
 						clientIntents.Namespace)
 					err = ldm.Client.Create(ctx, route)
-					if err != nil { // TODO: return errors but continue processing
+					if err != nil {
 						return nil, err
 					}
 				}
 				currentResources[Routes].Add(route.UID)
-				// should create authpolicy
 				policy, shouldCreatePolicy, err := ldm.shouldCreateAuthPolicy(ctx,
 					*clientIntents, route.Name,
 					LinkerdHTTPRouteKindName,
@@ -407,8 +404,7 @@ func (ldm *LinkerdManager) createResources(
 				if shouldCreatePolicy {
 					policy = ldm.generateAuthorizationPolicy(*clientIntents, intent, httpRouteName,
 						LinkerdHTTPRouteKindName,
-						LinkerdMeshTLSAuthenticationKindName,
-						addPath(httpResource.Path))
+						LinkerdMeshTLSAuthenticationKindName)
 					err = ldm.Client.Create(ctx, policy)
 					if err != nil {
 						ldm.recorder.RecordWarningEventf(clientIntents, ReasonCreatingLinkerdPolicyFailed, "Failed to create Linkerd policy: %s", err.Error())
@@ -641,22 +637,12 @@ func (ldm *LinkerdManager) generateLinkerdServer(
 	return &s
 }
 
-type policyOpts func(*authpolicy.AuthorizationPolicy)
-
-func addPath(path string) policyOpts {
-	return func(policy *authpolicy.AuthorizationPolicy) {
-		replacedString := strings.TrimSuffix(strings.Replace(strings.Replace(path, "/", "slash-", -1), "*", "star-", -1), "-")
-		policy.Name = policy.Name + "-path-" + replacedString
-	}
-}
-
 func (ldm *LinkerdManager) generateAuthorizationPolicy(
 	intents otterizev1alpha3.ClientIntents,
 	intent otterizev1alpha3.Intent,
 	serverTargetName,
 	targetRefType,
 	requiredAuthRefType string,
-	authPolicyOpts ...policyOpts,
 ) *authpolicy.AuthorizationPolicy {
 	var (
 		targetRefName v1beta1.ObjectName
@@ -694,9 +680,6 @@ func (ldm *LinkerdManager) generateAuthorizationPolicy(
 				},
 			},
 		},
-	}
-	for _, opt := range authPolicyOpts {
-		opt(&a)
 	}
 	return &a
 }
