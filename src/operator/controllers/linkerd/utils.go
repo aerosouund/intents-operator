@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"time"
 
-	otterizev1alpha3 "github.com/otterize/intents-operator/src/operator/api/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,16 +18,16 @@ const (
 )
 
 // delete this method if port works normally
-func (ldm *LinkerdManager) getContainerWithIntentPort(intent otterizev1alpha3.Intent, pod *corev1.Pod) *corev1.Container {
-	for _, container := range pod.Spec.Containers {
-		for _, port := range container.Ports {
-			if port.ContainerPort == intent.Port {
-				return &container
-			}
-		}
-	}
-	return nil
-}
+// func (ldm *LinkerdManager) getContainerWithIntentPort(intent otterizev1alpha3.Intent, pod *corev1.Pod) *corev1.Container {
+// 	for _, container := range pod.Spec.Containers {
+// 		for _, port := range container.Ports {
+// 			if port.ContainerPort == intent.Port {
+// 				return &container
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
 
 func IsPodPartOfLinkerdMesh(pod corev1.Pod) bool {
 	linkerdEnabled, ok := pod.Annotations[LinkerdProxyKey]
