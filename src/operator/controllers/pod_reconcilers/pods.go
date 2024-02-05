@@ -6,6 +6,7 @@ import (
 
 	otterizev1alpha3 "github.com/otterize/intents-operator/src/operator/api/v1alpha3"
 	"github.com/otterize/intents-operator/src/operator/controllers/istiopolicy"
+	linkerdmanager "github.com/otterize/intents-operator/src/operator/controllers/linkerd"
 	"github.com/otterize/intents-operator/src/prometheus"
 	"github.com/otterize/intents-operator/src/shared/errors"
 	"github.com/otterize/intents-operator/src/shared/injectablerecorder"
@@ -36,16 +37,19 @@ type PodWatcher struct {
 	client.Client
 	serviceIdResolver *serviceidresolver.Resolver
 	istioPolicyAdmin  istiopolicy.PolicyManager
+	linkerdManager    linkerdmanager.LinkerdManager
 	injectablerecorder.InjectableRecorder
 }
 
-func NewPodWatcher(c client.Client, eventRecorder record.EventRecorder, watchedNamespaces []string, enforcementDefaultState bool, istioEnforcementEnabled bool) *PodWatcher {
+func NewPodWatcher(c client.Client, eventRecorder record.EventRecorder, watchedNamespaces []string, enforcementDefaultState, istioEnforcementEnabled, linkerdEnforcementEnabled bool) *PodWatcher {
 	recorder := injectablerecorder.InjectableRecorder{Recorder: eventRecorder}
 	creator := istiopolicy.NewPolicyManager(c, &recorder, watchedNamespaces, enforcementDefaultState, istioEnforcementEnabled)
+	ldm := linkerdmanager.NewLinkerdManager(c, watchedNamespaces, &recorder, enforcementDefaultState, linkerdEnforcementEnabled)
 	return &PodWatcher{
 		Client:             c,
 		serviceIdResolver:  serviceidresolver.NewResolver(c),
 		istioPolicyAdmin:   creator,
+		linkerdManager:     *ldm, // check if this port config breaks something
 		InjectableRecorder: recorder,
 	}
 }
@@ -89,12 +93,53 @@ func (p *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, errors.Wrap(err)
 	}
 
-	// err = p.handleLinkerdPolicy(ctx, pod, serviceID)
-	// if err != nil {
-	// 	return ctrl.Result{}, errors.Wrap(err)
-	// }
+	err = p.handleLinkerdPolicy(ctx, pod, serviceID)
+	if err != nil {
+		return ctrl.Result{}, errors.Wrap(err)
+	}
 
 	return ctrl.Result{}, nil
+}
+
+func (p *PodWatcher) handleLinkerdPolicy(ctx context.Context, pod v1.Pod, serviceID serviceidentity.ServiceIdentity) error {
+	if !p.linkerdEnforcementEnabled() || pod.DeletionTimestamp != nil {
+		return nil
+	}
+
+	isLinkerdInstalled, err := linkerdmanager.IsLinkerdInstalled(ctx, p.Client)
+	if err != nil {
+		return errors.Wrap(err)
+	}
+
+	if !isLinkerdInstalled {
+		logrus.Debug("Linkerd server CRD is not installed, Linkerd resource creation skipped")
+		return nil
+	}
+
+	var intents otterizev1alpha3.ClientIntentsList
+	err = p.List(
+		ctx,
+		&intents,
+		&client.MatchingFields{OtterizeClientNameIndexField: serviceID.Name}, // make you sure you understand what is service identity
+		&client.ListOptions{Namespace: pod.Namespace})
+	if err != nil {
+		logrus.WithFields(logrus.Fields{"ServiceName": serviceID, "Namespace": pod.Namespace}).Errorln("Failed listing intents")
+		return errors.Wrap(err)
+	}
+
+	if len(intents.Items) == 0 {
+		return nil
+	}
+
+	for _, clientIntents := range intents.Items {
+		err = p.createLinkerdPolicies(ctx, clientIntents, pod)
+		if err != nil {
+			return errors.Wrap(err)
+		}
+	}
+
+	return nil
+
 }
 
 func (p *PodWatcher) handleIstioPolicy(ctx context.Context, pod v1.Pod, serviceID serviceidentity.ServiceIdentity) error {
@@ -233,6 +278,14 @@ func (p *PodWatcher) addOtterizePodLabels(ctx context.Context, req ctrl.Request,
 
 func (p *PodWatcher) istioEnforcementEnabled() bool {
 	return viper.GetBool(operatorconfig.EnableIstioPolicyKey)
+}
+
+func (p *PodWatcher) linkerdEnforcementEnabled() bool {
+	return viper.GetBool(operatorconfig.EnableLinkerdPolicyKey)
+}
+
+func (p *PodWatcher) createLinkerdPolicies(ctx context.Context, intents otterizev1alpha3.ClientIntents, pod v1.Pod) error {
+	return nil
 }
 
 func (p *PodWatcher) createIstioPolicies(ctx context.Context, intents otterizev1alpha3.ClientIntents, pod v1.Pod) error {

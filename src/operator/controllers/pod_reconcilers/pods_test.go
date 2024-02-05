@@ -3,6 +3,9 @@ package pod_reconcilers
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"testing"
+
 	otterizev1alpha2 "github.com/otterize/intents-operator/src/operator/api/v1alpha2"
 	otterizev1alpha3 "github.com/otterize/intents-operator/src/operator/api/v1alpha3"
 	"github.com/otterize/intents-operator/src/shared/testbase"
@@ -15,10 +18,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"path/filepath"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"testing"
 )
 
 type WatcherPodLabelReconcilerTestSuite struct {
@@ -49,7 +50,7 @@ func (s *WatcherPodLabelReconcilerTestSuite) SetupSuite() {
 func (s *WatcherPodLabelReconcilerTestSuite) SetupTest() {
 	s.ControllerManagerTestSuiteBase.SetupTest()
 	recorder := s.Mgr.GetEventRecorderFor("intents-operator")
-	s.Reconciler = NewPodWatcher(s.Mgr.GetClient(), recorder, []string{}, true, true)
+	s.Reconciler = NewPodWatcher(s.Mgr.GetClient(), recorder, []string{}, true, true, true)
 	s.Require().NoError(s.Reconciler.InitIntentsClientIndices(s.Mgr))
 }
 
