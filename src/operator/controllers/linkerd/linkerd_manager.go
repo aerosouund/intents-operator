@@ -316,7 +316,7 @@ func (ldm *LinkerdManager) createResources(
 		ports := []int32{}
 		for _, container := range pod.Spec.Containers {
 			for _, port := range container.Ports {
-				ports = append(ports, port.HostPort)
+				ports = append(ports, port.ContainerPort)
 			}
 		}
 
