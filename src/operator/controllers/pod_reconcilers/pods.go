@@ -285,6 +285,21 @@ func (p *PodWatcher) linkerdEnforcementEnabled() bool {
 }
 
 func (p *PodWatcher) createLinkerdPolicies(ctx context.Context, intents otterizev1alpha3.ClientIntents, pod v1.Pod) error {
+	if intents.DeletionTimestamp != nil {
+		return nil
+	}
+	missingSideCar := !linkerdmanager.IsPodPartOfLinkerdMesh(pod)
+	if missingSideCar {
+		logrus.Infof("Pod %s/%s does not have a sidecar, skipping Linkerd resources", pod.Namespace, pod.Name)
+		return nil
+	}
+
+	err := p.linkerdManager.Create(ctx, &intents, pod.Spec.ServiceAccountName)
+	if err != nil {
+		logrus.WithError(err).Errorln("Failed creating Linkerd resources")
+		return errors.Wrap(err)
+	}
+
 	return nil
 }
 
