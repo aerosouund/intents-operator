@@ -528,7 +528,7 @@ func (ldm *LinkerdManager) shouldCreateServer(ctx context.Context, intents otter
 	linkerdServerServiceFormattedIdentity := otterizev1alpha3.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
 	podSelector := ldm.BuildPodLabelSelectorFromIntent(intent, intents.Namespace)
 	servers := &linkerdserver.ServerList{}
-	logrus.Infof("should create server ? %s", podSelector.String())
+	logrus.Infof("should create server ? %s, %d", podSelector.String(), port)
 	err := ldm.Client.List(ctx, servers, client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity})
 	if err != nil {
 		return nil, false, err
