@@ -348,7 +348,7 @@ func (ldm *LinkerdManager) createResources(
 				if probePath != "" {
 					httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, port, generateRandomString(8))
 					probePathRoute, shouldCreateRoute, err := ldm.shouldCreateHTTPRoute(ctx, *clientIntents,
-						intent, probePath)
+						intent, probePath, s.Name)
 					if err != nil {
 						return nil, err
 					}
@@ -392,7 +392,7 @@ func (ldm *LinkerdManager) createResources(
 				for _, httpResource := range intent.HTTPResources {
 					httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, port, generateRandomString(8))
 					route, shouldCreateRoute, err := ldm.shouldCreateHTTPRoute(ctx, *clientIntents,
-						intent, httpResource.Path)
+						intent, httpResource.Path, s.Name)
 					if err != nil {
 						return nil, err
 					}
@@ -553,7 +553,8 @@ func (ldm *LinkerdManager) shouldCreateServer(ctx context.Context, intents otter
 func (ldm *LinkerdManager) shouldCreateHTTPRoute(ctx context.Context,
 	intents otterizev1alpha3.ClientIntents,
 	intent otterizev1alpha3.Intent,
-	path string,
+	path,
+	parentName string,
 ) (*authpolicy.HTTPRoute, bool, error) {
 	clientFormattedIdentity := v1alpha2.GetFormattedOtterizeIdentity(intents.Spec.Service.Name, intents.Namespace)
 	routes := &authpolicy.HTTPRouteList{}
@@ -561,11 +562,16 @@ func (ldm *LinkerdManager) shouldCreateHTTPRoute(ctx context.Context,
 	if err != nil {
 		return nil, false, err
 	}
+	// Dont create the route if it has the same parent server as the serve in question and defines the same rule
 	for _, route := range routes.Items {
-		for _, rule := range route.Spec.Rules {
-			for _, match := range rule.Matches {
-				if *match.Path.Value == path {
-					return &route, false, nil
+		for _, parent := range route.Spec.ParentRefs {
+			if parent.Name == v1beta1.ObjectName(parentName) {
+				for _, rule := range route.Spec.Rules {
+					for _, match := range rule.Matches {
+						if *match.Path.Value == path {
+							return &route, false, nil
+						}
+					}
 				}
 			}
 		}
