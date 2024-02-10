@@ -294,11 +294,11 @@ func (p *PodWatcher) createLinkerdPolicies(ctx context.Context, intents otterize
 		return nil
 	}
 
-	err := p.linkerdManager.Create(ctx, &intents, pod.Spec.ServiceAccountName)
-	if err != nil {
-		logrus.WithError(err).Errorln("Failed creating Linkerd resources")
-		return errors.Wrap(err)
-	}
+	// err := p.linkerdManager.Create(ctx, &intents, pod.Spec.ServiceAccountName)
+	// if err != nil {
+	// 	logrus.WithError(err).Errorln("Failed creating Linkerd resources")
+	// 	return errors.Wrap(err)
+	// }
 
 	return nil
 }
