@@ -303,7 +303,7 @@ func (ldm *LinkerdManager) createResources(
 			continue
 		}
 
-		pod, err := ldm.serviceIdResolver.ResolveClientIntentToPod(ctx, *clientIntents)
+		pod, err := ldm.serviceIdResolver.ResolveIntentServerToPod(ctx, intent, clientIntents.Namespace)
 		if err != nil {
 			return nil, err
 		}
