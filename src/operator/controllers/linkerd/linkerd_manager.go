@@ -48,6 +48,7 @@ const (
 	AuthorizationPolicies                             = "authpolicies"
 	MTLSAuthentications                               = "mtlsauth"
 	NetworkAuthentications                            = "netauth"
+	LinkerdContainer                                  = "linkerd-proxy"
 )
 
 type LinkerdPolicyManager interface {
@@ -314,8 +315,10 @@ func (ldm *LinkerdManager) createResources(
 
 		ports := []int32{}
 		for _, container := range pod.Spec.Containers {
-			for _, port := range container.Ports {
-				ports = append(ports, port.ContainerPort)
+			if container.Name != LinkerdContainer {
+				for _, port := range container.Ports {
+					ports = append(ports, port.ContainerPort)
+				}
 			}
 		}
 
