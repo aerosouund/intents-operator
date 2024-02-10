@@ -26,7 +26,7 @@ import (
 
 const (
 	ReasonGettingLinkerdPolicyFailed                  = "GettingLinkerdPolicyFailed"
-	OtterizeLinkerdServerNameTemplate                 = "server-for-%s-port-%d-%s"
+	OtterizeLinkerdServerNameTemplate                 = "server-for-%s-port-%d"
 	OtterizeLinkerdMeshTLSNameTemplate                = "meshtls-for-client-%s"
 	OtterizeLinkerdAuthPolicyNameTemplate             = "authpolicy-to-%s-port-%d-from-client-%s-%s"
 	OtterizeLinkerdAuthPolicyForHTTPRouteNameTemplate = "authorization-policy-to-%s-port-%d-from-client-%s-path-%s"
@@ -470,7 +470,7 @@ func (ldm *LinkerdManager) BuildPodLabelSelectorFromIntent(intent otterizev1alph
 
 func (ldm *LinkerdManager) getServerName(intent otterizev1alpha3.Intent, port int32) string {
 	name := intent.GetTargetServerName()
-	return fmt.Sprintf(OtterizeLinkerdServerNameTemplate, name, port, generateRandomString(8))
+	return fmt.Sprintf(OtterizeLinkerdServerNameTemplate, name, port)
 }
 
 func (ldm *LinkerdManager) createIntentPrimaryResources(ctx context.Context,
