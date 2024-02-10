@@ -320,10 +320,12 @@ func (ldm *LinkerdManager) createResources(
 		}
 
 		for _, port := range ports {
+			logrus.Info("processing port: ", port)
 			s, shouldCreateServer, err := ldm.shouldCreateServer(ctx, *clientIntents, intent, port)
 			if err != nil {
 				return nil, err
 			}
+			logrus.Info("should create server result for port: ", port, shouldCreateServer)
 
 			if shouldCreateServer {
 				podSelector := ldm.BuildPodLabelSelectorFromIntent(intent, clientIntents.Namespace)
