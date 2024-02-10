@@ -26,7 +26,7 @@ import (
 
 const (
 	ReasonGettingLinkerdPolicyFailed                  = "GettingLinkerdPolicyFailed"
-	OtterizeLinkerdServerNameTemplate                 = "server-for-%s-port-%d"
+	OtterizeLinkerdServerNameTemplate                 = "server-for-%s-port-%d-%s"
 	OtterizeLinkerdMeshTLSNameTemplate                = "meshtls-for-client-%s"
 	OtterizeLinkerdAuthPolicyNameTemplate             = "authpolicy-to-%s-port-%d-from-client-%s-%s"
 	OtterizeLinkerdAuthPolicyForHTTPRouteNameTemplate = "authorization-policy-to-%s-port-%d-from-client-%s-path-%s"
@@ -280,7 +280,6 @@ func (ldm *LinkerdManager) createResources(
 			return nil, err
 		}
 
-		// REVERT THIS
 		if !shouldCreateLinkerdResources {
 			logrus.Infof("Enforcement is disabled globally and server is not explicitly protected, skipping linkerd policy creation for server %s in namespace %s", intent.GetTargetServerName(), intent.GetTargetServerNamespace(clientIntents.Namespace))
 			ldm.recorder.RecordNormalEventf(clientIntents, consts.ReasonEnforcementDefaultOff, "Enforcement is disabled globally and called service '%s' is not explicitly protected using a ProtectedService resource, linkerd policy creation skipped", intent.Name)
@@ -469,7 +468,7 @@ func (ldm *LinkerdManager) BuildPodLabelSelectorFromIntent(intent otterizev1alph
 
 func (ldm *LinkerdManager) getServerName(intent otterizev1alpha3.Intent, port int32) string {
 	name := intent.GetTargetServerName()
-	return fmt.Sprintf(OtterizeLinkerdServerNameTemplate, name, port)
+	return fmt.Sprintf(OtterizeLinkerdServerNameTemplate, name, port, generateRandomString(8))
 }
 
 func (ldm *LinkerdManager) createIntentPrimaryResources(ctx context.Context,
