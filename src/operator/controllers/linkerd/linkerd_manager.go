@@ -28,7 +28,7 @@ const (
 	ReasonGettingLinkerdPolicyFailed                  = "GettingLinkerdPolicyFailed"
 	OtterizeLinkerdServerNameTemplate                 = "server-for-%s-port-%d"
 	OtterizeLinkerdMeshTLSNameTemplate                = "meshtls-for-client-%s"
-	OtterizeLinkerdAuthPolicyNameTemplate             = "authpolicy-to-%s-port-%d-from-client-%s"
+	OtterizeLinkerdAuthPolicyNameTemplate             = "authpolicy-to-%s-port-%d-from-client-%s-%s"
 	OtterizeLinkerdAuthPolicyForHTTPRouteNameTemplate = "authorization-policy-to-%s-port-%d-from-client-%s-path-%s"
 	ReasonDeleteLinkerdPolicyFailed                   = "DeleteLinkerdPolicyFailed"
 	ReasonNamespaceNotAllowed                         = "NamespaceNotAllowed"
@@ -525,11 +525,11 @@ func getPathMatchPointer(ap authpolicy.PathMatchType) *authpolicy.PathMatchType 
 }
 
 func (ldm *LinkerdManager) shouldCreateServer(ctx context.Context, intents otterizev1alpha3.ClientIntents, intent otterizev1alpha3.Intent, port int32) (*linkerdserver.Server, bool, error) {
-	linkerdServerServiceFormattedIdentity := otterizev1alpha3.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
 	podSelector := ldm.BuildPodLabelSelectorFromIntent(intent, intents.Namespace)
 	servers := &linkerdserver.ServerList{}
 	logrus.Infof("should create server ? %s, %d", podSelector.String(), port)
-	err := ldm.Client.List(ctx, servers, client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity})
+	// list all servers in the namespace
+	err := ldm.Client.List(ctx, servers, &client.ListOptions{Namespace: intents.Namespace})
 	if err != nil {
 		return nil, false, err
 	}
@@ -542,6 +542,7 @@ func (ldm *LinkerdManager) shouldCreateServer(ctx context.Context, intents otter
 	// get servers in the namespace and if any of them has a label selector similar to the intents label return that server
 	for _, server := range servers.Items {
 		if server.Name == fmt.Sprintf(OtterizeLinkerdServerNameTemplate, intent.Name, port) {
+			// check if it has the annotation of this service if it doesnt add it
 			return &server, false, nil
 		}
 	}
@@ -579,14 +580,14 @@ func (ldm *LinkerdManager) shouldCreateAuthPolicy(ctx context.Context,
 	authRefKind string) (*authpolicy.AuthorizationPolicy, bool, error) {
 	authPolicies := &authpolicy.AuthorizationPolicyList{}
 
-	err := ldm.Client.List(ctx, authPolicies, &client.ListOptions{Namespace: intents.Namespace}) // check if auth policies can work across namespaces, in this case this wont work
+	err := ldm.Client.List(ctx, authPolicies, &client.ListOptions{Namespace: intents.Namespace})
 	if err != nil {
 		return nil, false, err
 	}
 	for _, policy := range authPolicies.Items {
 		if policy.Spec.TargetRef.Name == v1beta1.ObjectName(targetName) && policy.Spec.TargetRef.Kind == v1beta1.Kind(targetRefKind) {
 			for _, authRef := range policy.Spec.RequiredAuthenticationRefs {
-				if authRef.Kind == v1beta1.Kind(authRefKind) && authRef.Name == v1beta1.ObjectName(authRefName) { // TODO: check for authrefname too
+				if authRef.Kind == v1beta1.Kind(authRefKind) && authRef.Name == v1beta1.ObjectName(authRefName) {
 					logrus.Infof("not creating policy for policy with details, %s, %s", policy.Spec.TargetRef.Name, authRef.Name)
 					return &policy, false, nil
 				}
@@ -678,7 +679,7 @@ func (ldm *LinkerdManager) generateAuthorizationPolicy(
 			Kind:       "AuthorizationPolicy",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name),
+			Name:      fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8)),
 			Namespace: intents.Namespace,
 			Labels: map[string]string{
 				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
