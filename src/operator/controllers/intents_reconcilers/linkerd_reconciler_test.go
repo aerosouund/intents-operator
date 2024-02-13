@@ -80,7 +80,6 @@ func (s *LinkerdReconcilerTestSuite) TestCreatePolicy() {
 
 	s.expectValidatingLinkerdInstalled()
 
-	// Initial call to get the ClientIntents object when reconciler starts
 	emptyIntents := &otterizev1alpha3.ClientIntents{}
 	s.Client.EXPECT().Get(gomock.Any(), req.NamespacedName, gomock.Eq(emptyIntents)).DoAndReturn(
 		func(ctx context.Context, name types.NamespacedName, intents *otterizev1alpha3.ClientIntents, options ...client.ListOption) error {
