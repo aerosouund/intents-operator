@@ -540,6 +540,7 @@ func (ldm *LinkerdManager) shouldCreateServer(ctx context.Context, intents otter
 
 	// no servers exist
 	if len(servers.Items) == 0 {
+		logrus.Info("no servers in the list")
 		return nil, true, nil
 	}
 
