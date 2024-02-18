@@ -73,19 +73,6 @@ func (r *LinkerdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	logrus.Infof("Reconciling Linkerd policies for service %s in namespace %s",
 		intents.Spec.Service.Name, req.Namespace)
 
-	if !intents.DeletionTimestamp.IsZero() {
-		logrus.Info("initiate delete")
-		err = r.linkerdManager.DeleteAll(ctx, intents)
-
-		if err != nil {
-			if k8serrors.IsConflict(err) {
-				return ctrl.Result{Requeue: true}, nil
-			}
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-
 	pod, err := r.serviceIdResolver.ResolveClientIntentToPod(ctx, *intents)
 
 	if err != nil {
@@ -117,6 +104,19 @@ func (r *LinkerdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	if !intents.DeletionTimestamp.IsZero() {
+		logrus.Info("initiate delete")
+		err = r.linkerdManager.DeleteAll(ctx, intents)
+
+		if err != nil {
+			if k8serrors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil // need to not delete resources used by other intents
 	}
 
 	return ctrl.Result{}, nil
