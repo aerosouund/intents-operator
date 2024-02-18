@@ -560,9 +560,8 @@ func (ldm *LinkerdManager) shouldCreateHTTPRoute(ctx context.Context,
 	path,
 	parentName string,
 ) (*authpolicy.HTTPRoute, bool, error) {
-	clientFormattedIdentity := v1alpha2.GetFormattedOtterizeIdentity(intents.Spec.Service.Name, intents.Namespace)
 	routes := &authpolicy.HTTPRouteList{}
-	err := ldm.Client.List(ctx, routes, &client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: clientFormattedIdentity})
+	err := ldm.Client.List(ctx, routes, &client.ListOptions{Namespace: intents.Namespace})
 	if err != nil {
 		return nil, false, err
 	}
