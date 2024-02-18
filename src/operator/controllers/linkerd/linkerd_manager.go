@@ -29,6 +29,7 @@ const (
 	OtterizeLinkerdServerNameTemplate                 = "server-for-%s-port-%d"
 	OtterizeLinkerdMeshTLSNameTemplate                = "meshtls-for-client-%s"
 	OtterizeLinkerdAuthPolicyNameTemplate             = "authpolicy-to-%s-port-%d-from-client-%s-%s"
+	OtterizeLinkerdAuthPolicyProbeRouteNameTemplate   = "authpolicy-to-%s-port-%d-for-probe-path"
 	OtterizeLinkerdAuthPolicyForHTTPRouteNameTemplate = "authorization-policy-to-%s-port-%d-from-client-%s-path-%s"
 	ReasonDeleteLinkerdPolicyFailed                   = "DeleteLinkerdPolicyFailed"
 	ReasonNamespaceNotAllowed                         = "NamespaceNotAllowed"
@@ -675,11 +676,14 @@ func (ldm *LinkerdManager) generateAuthorizationPolicy(
 ) *authpolicy.AuthorizationPolicy {
 	var (
 		targetRefName v1beta1.ObjectName
+		policyName    string
 	)
 	switch requiredAuthRefType {
 	case LinkerdNetAuthKindName:
+		policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyProbeRouteNameTemplate, intent.Name, port)
 		targetRefName = v1beta1.ObjectName(NetworkAuthenticationNameTemplate)
 	case LinkerdMeshTLSAuthenticationKindName:
+		policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8))
 		targetRefName = v1beta1.ObjectName(fmt.Sprintf(OtterizeLinkerdMeshTLSNameTemplate, intents.Spec.Service.Name))
 	}
 	linkerdServerServiceFormattedIdentity := otterizev1alpha3.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
@@ -689,7 +693,7 @@ func (ldm *LinkerdManager) generateAuthorizationPolicy(
 			Kind:       "AuthorizationPolicy",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8)),
+			Name:      policyName,
 			Namespace: intents.Namespace,
 			Labels: map[string]string{
 				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
