@@ -3,6 +3,7 @@ package linkerdmanager
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/amit7itz/goset"
 	authpolicy "github.com/linkerd/linkerd2/controller/gen/apis/policy/v1alpha1"
@@ -93,6 +94,11 @@ func (ldm *LinkerdManager) Create(
 		existingServers    linkerdserver.ServerList
 		existingHttpRoutes authpolicy.HTTPRouteList
 	)
+
+	if !clientIntents.DeletionTimestamp.IsZero() {
+		ldm.recorder.RecordWarningEventf(clientIntents, ReasonGettingLinkerdPolicyFailed, "Not creating Linkerd resources for deleted intent")
+		return nil
+	}
 	// TODO: the struct method works here
 	err := ldm.Client.List(ctx,
 		&existingPolicies,
@@ -508,6 +514,24 @@ func (ldm *LinkerdManager) createIntentPrimaryResources(ctx context.Context,
 		}
 	}
 	return nil
+}
+
+func (ldm *LinkerdManager) AddNewServerToLinkerdResource(ctx context.Context, intents otterizev1alpha3.ClientIntents,
+	intent otterizev1alpha3.Intent, resource client.Object) {
+
+	// need listing for resources for every intent to return all its associated resources
+	// cant add another annotation because you have to account for that in listing
+	// cant append to existing server annotation because this breaks listing
+	// resource recreation is the only viable thing until now
+
+	serverAnnotationKey := strings.Split(resource.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey], ".")
+	linkerdServerServiceFormattedIdentity := v1alpha2.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
+
+	for _, server := range serverAnnotationKey {
+		if server == linkerdServerServiceFormattedIdentity {
+			return
+		}
+	}
 }
 
 func (ldm *LinkerdManager) getLivenessProbePath(ctx context.Context, intents otterizev1alpha3.ClientIntents,
