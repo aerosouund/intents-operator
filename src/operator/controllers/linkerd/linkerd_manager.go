@@ -94,11 +94,6 @@ func (ldm *LinkerdManager) Create(
 		existingServers    linkerdserver.ServerList
 		existingHttpRoutes authpolicy.HTTPRouteList
 	)
-
-	if !clientIntents.DeletionTimestamp.IsZero() {
-		ldm.recorder.RecordWarningEventf(clientIntents, ReasonGettingLinkerdPolicyFailed, "Not creating Linkerd resources for deleted intent")
-		return nil
-	}
 	// TODO: the struct method works here
 	err := ldm.Client.List(ctx,
 		&existingPolicies,

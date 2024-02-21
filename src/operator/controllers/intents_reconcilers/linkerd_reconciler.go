@@ -83,6 +83,7 @@ func (r *LinkerdReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
 	pod, err := r.serviceIdResolver.ResolveClientIntentToPod(ctx, *intents)
