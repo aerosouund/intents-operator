@@ -145,7 +145,10 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		existingHttpRoutes authpolicy.HTTPRouteList
 		existingNetAuth    authpolicy.NetworkAuthenticationList
 		existingMTLS       authpolicy.MeshTLSAuthenticationList
+		allPoliciesInNS    authpolicy.AuthorizationPolicyList
 	)
+	policies := map[string]authpolicy.AuthorizationPolicy{}
+
 	// TODO: the struct method works here
 	err := ldm.Client.List(ctx,
 		&existingPolicies,
@@ -153,6 +156,25 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 	if err != nil {
 		ldm.recorder.RecordWarningEventf(intents, ReasonGettingLinkerdPolicyFailed, "Could not get Linkerd policies: %s", err.Error())
 		return err
+	}
+
+	err = ldm.Client.List(ctx,
+		&allPoliciesInNS,
+		&client.ListOptions{Namespace: intents.Namespace})
+	if err != nil {
+		ldm.recorder.RecordWarningEventf(intents, ReasonGettingLinkerdPolicyFailed, "Could not get Linkerd policies: %s", err.Error())
+		return err
+	}
+
+	for _, policy := range allPoliciesInNS.Items {
+		policies[policy.Name] = policy
+	}
+
+	for _, policy := range existingPolicies.Items {
+		_, ok := policies[policy.Name]
+		if ok {
+			delete(policies, policy.Name)
+		}
 	}
 
 	err = ldm.Client.List(ctx,
@@ -194,29 +216,29 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		}
 	}
 
-	for _, existingServer := range existingServers.Items {
-		err := ldm.Client.Delete(ctx, &existingServer)
+	for _, server := range existingServers.Items {
+		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &server, policies, true)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, existingRoute := range existingHttpRoutes.Items {
-		err := ldm.Client.Delete(ctx, &existingRoute)
+	for _, route := range existingHttpRoutes.Items {
+		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &route, policies, true)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, existingNetworkAuth := range existingNetAuth.Items {
-		err := ldm.Client.Delete(ctx, &existingNetworkAuth)
+	for _, netAuth := range existingNetAuth.Items {
+		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &netAuth, policies, true)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, existingMTLSAuth := range existingMTLS.Items {
-		err := ldm.Client.Delete(ctx, &existingMTLSAuth)
+	for _, mtlsAuth := range existingMTLS.Items {
+		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &mtlsAuth, policies, true)
 		if err != nil {
 			return err
 		}
@@ -653,6 +675,44 @@ func (ldm *LinkerdManager) shouldCreateNetAuth(ctx context.Context, intents otte
 		}
 	}
 	return true, nil
+}
+
+func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx context.Context, object client.Object, policies map[string]authpolicy.AuthorizationPolicy, isTargetRef bool) error {
+	// go through all policies, if another policy has this route as a target ref, update the server annotation
+	// of that route to be equal to that of the policy and dont delete the route
+	for _, policy := range policies {
+		if isTargetRef {
+			if string(policy.Spec.TargetRef.Name) == object.GetName() {
+				object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
+				err := ldm.Client.Update(ctx, object, &client.UpdateOptions{})
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			err := ldm.Client.Delete(ctx, object)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		for _, authRef := range policy.Spec.RequiredAuthenticationRefs {
+			if string(authRef.Name) == object.GetName() {
+				object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
+				err := ldm.Client.Update(ctx, object, &client.UpdateOptions{})
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			err := ldm.Client.Delete(ctx, object)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+	return nil
 }
 
 func (ldm *LinkerdManager) generateLinkerdServer(
