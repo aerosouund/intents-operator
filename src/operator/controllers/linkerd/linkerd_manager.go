@@ -693,11 +693,12 @@ func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx contex
 				}
 				continue
 			}
-			// err := ldm.Client.Delete(ctx, object)
-			// if err != nil {
-			// 	return err
-			// }
-			// return nil
+			logrus.Info("deleting object ", object.GetName(), "owned by", object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
+			err := ldm.Client.Delete(ctx, object)
+			if err != nil {
+				return err
+			}
+			return nil
 		}
 		for _, authRef := range policy.Spec.RequiredAuthenticationRefs {
 			if string(authRef.Name) == object.GetName() {
@@ -709,11 +710,12 @@ func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx contex
 				}
 				continue
 			}
-			// err := ldm.Client.Delete(ctx, object)
-			// if err != nil {
-			// 	return err
-			// }
-			// return nil
+			logrus.Info("deleting object ", object.GetName(), "owned by", object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
+			err := ldm.Client.Delete(ctx, object)
+			if err != nil {
+				return err
+			}
+			return nil
 		}
 	}
 	return nil
