@@ -193,6 +193,7 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		&client.ListOptions{Namespace: intents.Namespace},
 	)
 	if err != nil {
+		ldm.recorder.RecordWarningEventf(intents, ReasonGettingLinkerdPolicyFailed, "Could not get client intents for recreation: %s", err.Error())
 		return err
 	}
 
@@ -233,7 +234,6 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 
 	// recall create for other intents if resources belonging to other intents were deleted
 	for _, otherIntent := range otherIntents.Items {
-		logrus.Info("Recreating for : ", otherIntent.Name)
 		if otherIntent.Name != intents.Name {
 			pod, err := ldm.serviceIdResolver.ResolveClientIntentToPod(ctx, otherIntent)
 			if err != nil {
@@ -308,7 +308,7 @@ func (ldm *LinkerdManager) createResources(
 		if intent.Type != "" && intent.Type != otterizev1alpha3.IntentTypeHTTP { // this will skip non http ones, db for example, skip port doesnt exist as well
 			continue
 		}
-		shouldCreateLinkerdResources, err := protected_services.IsServerEnforcementEnabledDueToProtectionOrDefaultState( //TODO:  check what that does
+		shouldCreateLinkerdResources, err := protected_services.IsServerEnforcementEnabledDueToProtectionOrDefaultState(
 			ctx, ldm.Client, intent.GetTargetServerName(), intent.GetTargetServerNamespace(clientIntents.Namespace), ldm.enforcementDefaultState)
 		if err != nil {
 			return nil, err
