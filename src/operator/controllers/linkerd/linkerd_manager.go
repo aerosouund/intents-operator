@@ -177,6 +177,8 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		}
 	}
 
+	logrus.Info("Remaining policies", policies) // should be the policies that belong to other entities
+
 	err = ldm.Client.List(ctx,
 		&existingServers,
 		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: clientFormattedIdentity})
@@ -231,14 +233,14 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 	}
 
 	for _, netAuth := range existingNetAuth.Items {
-		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &netAuth, policies, true)
+		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &netAuth, policies, false)
 		if err != nil {
 			return err
 		}
 	}
 
 	for _, mtlsAuth := range existingMTLS.Items {
-		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &mtlsAuth, policies, true)
+		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &mtlsAuth, policies, false)
 		if err != nil {
 			return err
 		}
@@ -684,32 +686,34 @@ func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx contex
 		if isTargetRef {
 			if string(policy.Spec.TargetRef.Name) == object.GetName() {
 				object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
+				logrus.Info("Updating object with name ", object.GetName(), "to be owned by ", policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
 				err := ldm.Client.Update(ctx, object, &client.UpdateOptions{})
 				if err != nil {
 					return err
 				}
 				continue
 			}
-			err := ldm.Client.Delete(ctx, object)
-			if err != nil {
-				return err
-			}
-			return nil
+			// err := ldm.Client.Delete(ctx, object)
+			// if err != nil {
+			// 	return err
+			// }
+			// return nil
 		}
 		for _, authRef := range policy.Spec.RequiredAuthenticationRefs {
 			if string(authRef.Name) == object.GetName() {
 				object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
+				logrus.Info("Updating object with name ", object.GetName(), "to be owned by ", policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
 				err := ldm.Client.Update(ctx, object, &client.UpdateOptions{})
 				if err != nil {
 					return err
 				}
 				continue
 			}
-			err := ldm.Client.Delete(ctx, object)
-			if err != nil {
-				return err
-			}
-			return nil
+			// err := ldm.Client.Delete(ctx, object)
+			// if err != nil {
+			// 	return err
+			// }
+			// return nil
 		}
 	}
 	return nil
