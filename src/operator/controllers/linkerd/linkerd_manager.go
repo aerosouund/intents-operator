@@ -144,10 +144,8 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		existingHttpRoutes authpolicy.HTTPRouteList
 		existingNetAuth    authpolicy.NetworkAuthenticationList
 		existingMTLS       authpolicy.MeshTLSAuthenticationList
-		allPoliciesInNS    authpolicy.AuthorizationPolicyList
 		otherIntents       otterizev1alpha3.ClientIntentsList
 	)
-	policies := map[string]authpolicy.AuthorizationPolicy{}
 
 	// TODO: the struct method works here
 	err := ldm.Client.List(ctx,
@@ -157,27 +155,6 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		ldm.recorder.RecordWarningEventf(intents, ReasonGettingLinkerdPolicyFailed, "Could not get Linkerd policies: %s", err.Error())
 		return err
 	}
-
-	err = ldm.Client.List(ctx,
-		&allPoliciesInNS,
-		&client.ListOptions{Namespace: intents.Namespace})
-	if err != nil {
-		ldm.recorder.RecordWarningEventf(intents, ReasonGettingLinkerdPolicyFailed, "Could not get Linkerd policies: %s", err.Error())
-		return err
-	}
-
-	for _, policy := range allPoliciesInNS.Items {
-		policies[policy.Name] = policy
-	}
-
-	// for _, policy := range existingPolicies.Items {
-	// 	_, ok := policies[policy.Name]
-	// 	if ok {
-	// 		delete(policies, policy.Name)
-	// 	}
-	// }
-
-	logrus.Info("Remaining policies", policies) // should be the policies that belong to other entities
 
 	err = ldm.Client.List(ctx,
 		&existingServers,
