@@ -233,8 +233,9 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 
 	// recall create for other intents if resources belonging to other intents were deleted
 	for _, otherIntent := range otherIntents.Items {
+		logrus.Info("Recreating for : ", otherIntent.Name)
 		if otherIntent.Name != intents.Name {
-			pod, err := ldm.serviceIdResolver.ResolveClientIntentToPod(ctx, *intents)
+			pod, err := ldm.serviceIdResolver.ResolveClientIntentToPod(ctx, otherIntent)
 			if err != nil {
 				return err
 			}
