@@ -240,7 +240,7 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 				return err
 			}
 			clientServiceAccountName := pod.Spec.ServiceAccountName
-			missingSideCar := IsPodPartOfLinkerdMesh(pod)
+			missingSideCar := !IsPodPartOfLinkerdMesh(pod)
 
 			if missingSideCar {
 				logrus.Infof("Pod %s/%s does not have a sidecar, skipping Linkerd resource creation", pod.Namespace, pod.Name)
