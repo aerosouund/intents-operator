@@ -683,6 +683,7 @@ func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx contex
 	// go through all policies, if another policy has this route as a target ref, update the server annotation
 	// of that route to be equal to that of the policy and dont delete the route
 	for _, policy := range policies {
+		logrus.Info("Name of policy: ", policy.Spec.TargetRef.Name, " ", "Name of object", object.GetName())
 		if isTargetRef {
 			if string(policy.Spec.TargetRef.Name) == object.GetName() {
 				object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
@@ -710,7 +711,7 @@ func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx contex
 				}
 				continue
 			}
-			logrus.Info("deleting object ", object.GetName(), "owned by", object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
+			logrus.Info("deleting object ", object.GetName(), "owned by ", object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
 			err := ldm.Client.Delete(ctx, object)
 			if err != nil {
 				return err
