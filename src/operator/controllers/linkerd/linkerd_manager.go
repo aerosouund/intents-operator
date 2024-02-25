@@ -763,7 +763,8 @@ func (ldm *LinkerdManager) generateAuthorizationPolicy(
 	)
 	switch requiredAuthRefType {
 	case LinkerdNetAuthKindName:
-		policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyProbeRouteNameTemplate, intent.Name, port)
+		// policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyProbeRouteNameTemplate, intent.Name, port)
+		policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8))
 		targetRefName = v1beta1.ObjectName(NetworkAuthenticationNameTemplate)
 	case LinkerdMeshTLSAuthenticationKindName:
 		policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8))
