@@ -145,6 +145,7 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		existingNetAuth    authpolicy.NetworkAuthenticationList
 		existingMTLS       authpolicy.MeshTLSAuthenticationList
 		allPoliciesInNS    authpolicy.AuthorizationPolicyList
+		otherIntents       otterizev1alpha3.ClientIntentsList
 	)
 	policies := map[string]authpolicy.AuthorizationPolicy{}
 
@@ -169,12 +170,12 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		policies[policy.Name] = policy
 	}
 
-	for _, policy := range existingPolicies.Items {
-		_, ok := policies[policy.Name]
-		if ok {
-			delete(policies, policy.Name)
-		}
-	}
+	// for _, policy := range existingPolicies.Items {
+	// 	_, ok := policies[policy.Name]
+	// 	if ok {
+	// 		delete(policies, policy.Name)
+	// 	}
+	// }
 
 	logrus.Info("Remaining policies", policies) // should be the policies that belong to other entities
 
@@ -210,38 +211,67 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		return err
 	}
 
-	// for _, existingPolicy := range existingPolicies.Items {
-	// 	err := ldm.Client.Delete(ctx, &existingPolicy)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
+	err = ldm.Client.List(ctx,
+		&otherIntents,
+		&client.ListOptions{Namespace: intents.Namespace},
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, existingPolicy := range existingPolicies.Items {
+		err := ldm.Client.Delete(ctx, &existingPolicy)
+		if err != nil {
+			return err
+		}
+	}
 
 	for _, server := range existingServers.Items {
-		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &server, policies, true)
+		err := ldm.Client.Delete(ctx, &server)
 		if err != nil {
 			return err
 		}
 	}
 
 	for _, route := range existingHttpRoutes.Items {
-		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &route, policies, true)
+		err := ldm.Client.Delete(ctx, &route)
 		if err != nil {
 			return err
 		}
 	}
 
 	for _, netAuth := range existingNetAuth.Items {
-		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &netAuth, policies, false)
+		err := ldm.Client.Delete(ctx, &netAuth)
 		if err != nil {
 			return err
 		}
 	}
 
 	for _, mtlsAuth := range existingMTLS.Items {
-		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &mtlsAuth, policies, false)
+		err := ldm.Client.Delete(ctx, &mtlsAuth)
 		if err != nil {
 			return err
+		}
+	}
+
+	// recall create for other intents if resources belonging to other intents were deleted
+	for _, otherIntent := range otherIntents.Items {
+		if otherIntent.Name != intents.Name {
+			pod, err := ldm.serviceIdResolver.ResolveClientIntentToPod(ctx, *intents)
+			if err != nil {
+				return err
+			}
+			clientServiceAccountName := pod.Spec.ServiceAccountName
+			missingSideCar := IsPodPartOfLinkerdMesh(pod)
+
+			if missingSideCar {
+				logrus.Infof("Pod %s/%s does not have a sidecar, skipping Linkerd resource creation", pod.Namespace, pod.Name)
+				return err
+			}
+			err = ldm.Create(ctx, &otherIntent, clientServiceAccountName)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
