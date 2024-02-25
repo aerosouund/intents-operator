@@ -3,7 +3,6 @@ package linkerdmanager
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/amit7itz/goset"
 	authpolicy "github.com/linkerd/linkerd2/controller/gen/apis/policy/v1alpha1"
@@ -211,12 +210,12 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		return err
 	}
 
-	for _, existingPolicy := range existingPolicies.Items {
-		err := ldm.Client.Delete(ctx, &existingPolicy)
-		if err != nil {
-			return err
-		}
-	}
+	// for _, existingPolicy := range existingPolicies.Items {
+	// 	err := ldm.Client.Delete(ctx, &existingPolicy)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	for _, server := range existingServers.Items {
 		err = ldm.DeleteResourceIfNotReferencedByOtherPolicy(ctx, &server, policies, true)
@@ -535,24 +534,6 @@ func (ldm *LinkerdManager) createIntentPrimaryResources(ctx context.Context,
 	return nil
 }
 
-func (ldm *LinkerdManager) AddNewServerToLinkerdResource(ctx context.Context, intents otterizev1alpha3.ClientIntents,
-	intent otterizev1alpha3.Intent, resource client.Object) {
-
-	// need listing for resources for every intent to return all its associated resources
-	// cant add another annotation because you have to account for that in listing
-	// cant append to existing server annotation because this breaks listing
-	// resource recreation is the only viable thing until now
-
-	serverAnnotationKey := strings.Split(resource.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey], ".")
-	linkerdServerServiceFormattedIdentity := v1alpha2.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
-
-	for _, server := range serverAnnotationKey {
-		if server == linkerdServerServiceFormattedIdentity {
-			return
-		}
-	}
-}
-
 func (ldm *LinkerdManager) getLivenessProbePath(ctx context.Context, intents otterizev1alpha3.ClientIntents,
 	intent otterizev1alpha3.Intent) (string, error) {
 	pod, err := ldm.serviceIdResolver.ResolveIntentServerToPod(ctx, intent, intents.Namespace)
@@ -686,15 +667,15 @@ func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx contex
 		logrus.Info("Name of policy: ", policy.Spec.TargetRef.Name, " ", "Name of object", object.GetName())
 		if isTargetRef {
 			if string(policy.Spec.TargetRef.Name) == object.GetName() {
-				object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
-				logrus.Info("Updating object with name ", object.GetName(), "to be owned by ", policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
+				object.GetLabels()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Labels[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
+				logrus.Info("Updating object with name ", object.GetName(), "to be owned by ", policy.Labels[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
 				err := ldm.Client.Update(ctx, object, &client.UpdateOptions{})
 				if err != nil {
 					return err
 				}
 				continue
 			}
-			logrus.Info("deleting object ", object.GetName(), "owned by", object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
+			logrus.Info("deleting object ", object.GetName(), "owned by", object.GetLabels()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
 			err := ldm.Client.Delete(ctx, object)
 			if err != nil {
 				return err
@@ -703,15 +684,15 @@ func (ldm *LinkerdManager) DeleteResourceIfNotReferencedByOtherPolicy(ctx contex
 		}
 		for _, authRef := range policy.Spec.RequiredAuthenticationRefs {
 			if string(authRef.Name) == object.GetName() {
-				object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
-				logrus.Info("Updating object with name ", object.GetName(), "to be owned by ", policy.Annotations[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
+				object.GetLabels()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey] = policy.Labels[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey]
+				logrus.Info("Updating object with name ", object.GetName(), "to be owned by ", policy.Labels[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
 				err := ldm.Client.Update(ctx, object, &client.UpdateOptions{})
 				if err != nil {
 					return err
 				}
 				continue
 			}
-			logrus.Info("deleting object ", object.GetName(), "owned by ", object.GetAnnotations()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
+			logrus.Info("deleting object ", object.GetName(), "owned by ", object.GetLabels()[otterizev1alpha3.OtterizeLinkerdServerAnnotationKey])
 			err := ldm.Client.Delete(ctx, object)
 			if err != nil {
 				return err
