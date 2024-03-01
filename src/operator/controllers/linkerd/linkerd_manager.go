@@ -300,7 +300,7 @@ func (ldm *LinkerdManager) createResources(
 	clientIntents *otterizev1alpha3.ClientIntents,
 	clientServiceAccount string,
 ) (*LinkerdResourceMapping, error) {
-	var currentResources = &LinkerdResourceMapping{
+	currentResources := &LinkerdResourceMapping{
 		Servers:               goset.NewSet[types.UID](),
 		AuthorizationPolicies: goset.NewSet[types.UID](),
 		Routes:                goset.NewSet[types.UID](),
@@ -343,7 +343,7 @@ func (ldm *LinkerdManager) createResources(
 			return nil, err
 		}
 
-		err = ldm.createIntentPrimaryResources(ctx, *clientIntents, clientServiceAccount) // TODO: move to reconciler
+		err = ldm.createIntentPrimaryResources(ctx, *clientIntents, clientServiceAccount)
 		if err != nil {
 			return nil, err
 		}
