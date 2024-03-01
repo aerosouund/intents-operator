@@ -266,7 +266,7 @@ func (ldm *LinkerdManager) deleteOutdatedResources(ctx context.Context,
 	existingServers linkerdserver.ServerList,
 	existingRoutes authpolicy.HTTPRouteList) error {
 	for _, existingPolicy := range existingPolicies.Items {
-		if validResources.AuthorizationPolicies.Contains(existingPolicy.UID) {
+		if !validResources.AuthorizationPolicies.Contains(existingPolicy.UID) {
 			err := ldm.Client.Delete(ctx, &existingPolicy)
 			if err != nil {
 				return err
@@ -275,7 +275,7 @@ func (ldm *LinkerdManager) deleteOutdatedResources(ctx context.Context,
 	}
 
 	for _, existingServer := range existingServers.Items {
-		if validResources.Servers.Contains(existingServer.UID) {
+		if !validResources.Servers.Contains(existingServer.UID) {
 			err := ldm.Client.Delete(ctx, &existingServer)
 			if err != nil {
 				return err
@@ -284,7 +284,7 @@ func (ldm *LinkerdManager) deleteOutdatedResources(ctx context.Context,
 	}
 
 	for _, existingRoute := range existingRoutes.Items {
-		if validResources.Routes.Contains(existingRoute.UID) {
+		if !validResources.Routes.Contains(existingRoute.UID) {
 			err := ldm.Client.Delete(ctx, &existingRoute)
 			if err != nil {
 				return err
