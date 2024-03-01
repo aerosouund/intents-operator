@@ -300,7 +300,7 @@ func (ldm *LinkerdManager) createResources(
 	clientIntents *otterizev1alpha3.ClientIntents,
 	clientServiceAccount string,
 ) (*LinkerdResourceMapping, error) {
-	var currentResources = LinkerdResourceMapping{
+	var currentResources = &LinkerdResourceMapping{
 		Servers:               goset.NewSet[types.UID](),
 		AuthorizationPolicies: goset.NewSet[types.UID](),
 		Routes:                goset.NewSet[types.UID](),
@@ -494,7 +494,7 @@ func (ldm *LinkerdManager) createResources(
 			}
 		}
 	}
-	return &currentResources, nil
+	return currentResources, nil
 }
 
 func (ldm *LinkerdManager) BuildPodLabelSelectorFromIntent(intent otterizev1alpha3.Intent, intentsObjNamespace string) metav1.LabelSelector {
