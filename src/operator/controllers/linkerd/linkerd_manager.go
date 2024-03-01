@@ -752,15 +752,12 @@ func (ldm *LinkerdManager) generateAuthorizationPolicy(
 ) *authpolicy.AuthorizationPolicy {
 	var (
 		targetRefName v1beta1.ObjectName
-		policyName    string
+		policyName    = fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8))
 	)
 	switch requiredAuthRefType {
 	case LinkerdNetAuthKindName:
-		// policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyProbeRouteNameTemplate, intent.Name, port)
-		policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8))
 		targetRefName = v1beta1.ObjectName(NetworkAuthenticationNameTemplate)
 	case LinkerdMeshTLSAuthenticationKindName:
-		policyName = fmt.Sprintf(OtterizeLinkerdAuthPolicyNameTemplate, intent.Name, port, intents.Spec.Service.Name, generateRandomString(8))
 		targetRefName = v1beta1.ObjectName(fmt.Sprintf(OtterizeLinkerdMeshTLSNameTemplate, intents.Spec.Service.Name))
 	}
 	linkerdServerServiceFormattedIdentity := otterizev1alpha3.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
