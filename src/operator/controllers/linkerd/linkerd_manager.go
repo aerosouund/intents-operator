@@ -57,6 +57,12 @@ type LinkerdPolicyManager interface {
 	Create(ctx context.Context, clientIntents *otterizev1alpha3.ClientIntents, clientServiceAccount string) error
 }
 
+type LinkerdResourceMapping struct {
+	Servers               *goset.Set[types.UID]
+	AuthorizationPolicies *goset.Set[types.UID]
+	Routes                *goset.Set[types.UID]
+}
+
 type LinkerdManager struct {
 	client.Client
 	serviceIdResolver           serviceidresolver.ServiceResolver
@@ -147,7 +153,6 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 		otherIntents       otterizev1alpha3.ClientIntentsList
 	)
 
-	// TODO: the struct method works here
 	err := ldm.Client.List(ctx,
 		&existingPolicies,
 		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: clientFormattedIdentity})
@@ -256,12 +261,12 @@ func (ldm *LinkerdManager) DeleteAll(ctx context.Context,
 }
 
 func (ldm *LinkerdManager) deleteOutdatedResources(ctx context.Context,
-	validResources map[string]*goset.Set[types.UID],
+	validResources *LinkerdResourceMapping,
 	existingPolicies authpolicy.AuthorizationPolicyList,
 	existingServers linkerdserver.ServerList,
 	existingRoutes authpolicy.HTTPRouteList) error {
 	for _, existingPolicy := range existingPolicies.Items {
-		if !validResources[AuthorizationPolicies].Contains(existingPolicy.UID) {
+		if validResources.AuthorizationPolicies.Contains(existingPolicy.UID) {
 			err := ldm.Client.Delete(ctx, &existingPolicy)
 			if err != nil {
 				return err
@@ -270,7 +275,7 @@ func (ldm *LinkerdManager) deleteOutdatedResources(ctx context.Context,
 	}
 
 	for _, existingServer := range existingServers.Items {
-		if !validResources[Servers].Contains(existingServer.UID) {
+		if validResources.Servers.Contains(existingServer.UID) {
 			err := ldm.Client.Delete(ctx, &existingServer)
 			if err != nil {
 				return err
@@ -279,7 +284,7 @@ func (ldm *LinkerdManager) deleteOutdatedResources(ctx context.Context,
 	}
 
 	for _, existingRoute := range existingRoutes.Items {
-		if !validResources[Routes].Contains(existingRoute.UID) {
+		if validResources.Routes.Contains(existingRoute.UID) {
 			err := ldm.Client.Delete(ctx, &existingRoute)
 			if err != nil {
 				return err
@@ -294,15 +299,12 @@ func (ldm *LinkerdManager) createResources(
 	ctx context.Context,
 	clientIntents *otterizev1alpha3.ClientIntents,
 	clientServiceAccount string,
-) (map[string]*goset.Set[types.UID], error) {
-	currentResources := map[string]*goset.Set[types.UID]{
+) (*LinkerdResourceMapping, error) {
+	var currentResources = LinkerdResourceMapping{
 		Servers:               goset.NewSet[types.UID](),
 		AuthorizationPolicies: goset.NewSet[types.UID](),
 		Routes:                goset.NewSet[types.UID](),
 	}
-	/*
-		type whatever stru
-	*/
 
 	for _, intent := range clientIntents.GetCallsList() {
 		if intent.Type != "" && intent.Type != otterizev1alpha3.IntentTypeHTTP { // this will skip non http ones, db for example, skip port doesnt exist as well
@@ -372,7 +374,7 @@ func (ldm *LinkerdManager) createResources(
 					return nil, err
 				}
 			}
-			currentResources[Servers].Add(s.UID)
+			currentResources.Servers.Add(s.UID)
 
 			switch intent.Type {
 			case otterizev1alpha3.IntentTypeHTTP:
@@ -384,13 +386,13 @@ func (ldm *LinkerdManager) createResources(
 				if probePath != "" {
 					httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, port, generateRandomString(8))
 					probePathRoute, shouldCreateRoute, err := ldm.shouldCreateHTTPRoute(ctx, *clientIntents,
-						intent, probePath, s.Name)
+						probePath, s.Name)
 					if err != nil {
 						return nil, err
 					}
 
 					if shouldCreateRoute {
-						probePathRoute = ldm.generateHTTPRoute(*clientIntents, intent, s.Name, probePath,
+						probePathRoute = ldm.generateHTTPRoute(*clientIntents, s.Name, probePath,
 							httpRouteName,
 							clientIntents.Namespace)
 						err = ldm.Client.Create(ctx, probePathRoute)
@@ -398,7 +400,7 @@ func (ldm *LinkerdManager) createResources(
 							return nil, err
 						}
 					}
-					currentResources[Routes].Add(probePathRoute.UID)
+					currentResources.Routes.Add(probePathRoute.UID)
 
 					policy, shouldCreatePolicy, err := ldm.shouldCreateAuthPolicy(ctx,
 						*clientIntents, probePathRoute.Name,
@@ -422,19 +424,19 @@ func (ldm *LinkerdManager) createResources(
 						}
 
 					}
-					currentResources[AuthorizationPolicies].Add(policy.UID)
+					currentResources.AuthorizationPolicies.Add(policy.UID)
 				}
 
 				for _, httpResource := range intent.HTTPResources {
 					httpRouteName := fmt.Sprintf(HTTPRouteNameTemplate, intent.Name, port, generateRandomString(8))
 					route, shouldCreateRoute, err := ldm.shouldCreateHTTPRoute(ctx, *clientIntents,
-						intent, httpResource.Path, s.Name)
+						httpResource.Path, s.Name)
 					if err != nil {
 						return nil, err
 					}
 
 					if shouldCreateRoute {
-						route = ldm.generateHTTPRoute(*clientIntents, intent, s.Name, httpResource.Path,
+						route = ldm.generateHTTPRoute(*clientIntents, s.Name, httpResource.Path,
 							httpRouteName,
 							clientIntents.Namespace)
 						err = ldm.Client.Create(ctx, route)
@@ -442,7 +444,7 @@ func (ldm *LinkerdManager) createResources(
 							return nil, err
 						}
 					}
-					currentResources[Routes].Add(route.UID)
+					currentResources.Routes.Add(route.UID)
 					policy, shouldCreatePolicy, err := ldm.shouldCreateAuthPolicy(ctx,
 						*clientIntents, route.Name,
 						LinkerdHTTPRouteKindName,
@@ -464,7 +466,7 @@ func (ldm *LinkerdManager) createResources(
 							return nil, err
 						}
 					}
-					currentResources[AuthorizationPolicies].Add(policy.UID)
+					currentResources.AuthorizationPolicies.Add(policy.UID)
 				}
 			default:
 				policy, shouldCreatePolicy, err := ldm.shouldCreateAuthPolicy(ctx, *clientIntents,
@@ -488,11 +490,11 @@ func (ldm *LinkerdManager) createResources(
 						return nil, err
 					}
 				}
-				currentResources[AuthorizationPolicies].Add(policy.UID)
+				currentResources.AuthorizationPolicies.Add(policy.UID)
 			}
 		}
 	}
-	return currentResources, nil
+	return &currentResources, nil
 }
 
 func (ldm *LinkerdManager) BuildPodLabelSelectorFromIntent(intent otterizev1alpha3.Intent, intentsObjNamespace string) metav1.LabelSelector {
@@ -589,7 +591,6 @@ func (ldm *LinkerdManager) shouldCreateServer(ctx context.Context, intents otter
 
 func (ldm *LinkerdManager) shouldCreateHTTPRoute(ctx context.Context,
 	intents otterizev1alpha3.ClientIntents,
-	intent otterizev1alpha3.Intent,
 	path,
 	parentName string,
 ) (*authpolicy.HTTPRoute, bool, error) {
@@ -797,7 +798,7 @@ func StringPtr(s string) *string {
 	return &s
 }
 
-func (ldm *LinkerdManager) generateHTTPRoute(intents otterizev1alpha3.ClientIntents, intent otterizev1alpha3.Intent,
+func (ldm *LinkerdManager) generateHTTPRoute(intents otterizev1alpha3.ClientIntents,
 	serverName, path, name, namespace string) *authpolicy.HTTPRoute {
 	linkerdServerServiceFormattedIdentity := otterizev1alpha3.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
 	return &authpolicy.HTTPRoute{
