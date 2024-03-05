@@ -552,8 +552,8 @@ func (ldm *LinkerdManager) getLivenessProbePath(ctx context.Context, intents ott
 	}
 	// TODO: check of the other probe types will break
 	for _, c := range pod.Spec.Containers {
+		logrus.Info("the container definition : ", c)
 		if c.LivenessProbe != nil && c.LivenessProbe.HTTPGet != nil {
-			logrus.Info("liveness probe path is ", c.LivenessProbe.HTTPGet.Path)
 			return c.LivenessProbe.HTTPGet.Path, nil
 		}
 	}
