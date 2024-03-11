@@ -17,18 +17,6 @@ const (
 	LinkerdProxyKey = "linkerd.io/inject"
 )
 
-// delete this method if port works normally
-// func (ldm *LinkerdManager) getContainerWithIntentPort(intent otterizev1alpha3.Intent, pod *corev1.Pod) *corev1.Container {
-// 	for _, container := range pod.Spec.Containers {
-// 		for _, port := range container.Ports {
-// 			if port.ContainerPort == intent.Port {
-// 				return &container
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }
-
 func IsPodPartOfLinkerdMesh(pod corev1.Pod) bool {
 	linkerdEnabled, ok := pod.Annotations[LinkerdProxyKey]
 	if ok && linkerdEnabled == "enabled" {
