@@ -12,6 +12,7 @@ import (
 	"github.com/otterize/intents-operator/src/shared/testbase"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -101,7 +102,138 @@ func (s *LinkerdManagerTestSuite) TestCreateResourcesNonHTTPIntent() {
 		},
 		Spec: intentsSpec,
 	}
-	fmt.Println(intents)
+
+	formattedTargetServer := otterizev1alpha3.GetFormattedOtterizeIdentity(intents.Spec.Calls[0].GetTargetServerName(), ns)
+	linkerdServerServiceFormattedIdentity := otterizev1alpha3.GetFormattedOtterizeIdentity(intents.GetServiceName(), intents.Namespace)
+	podSelector := s.admin.BuildPodLabelSelectorFromIntent(intents.Spec.Calls[0], intents.Namespace)
+
+	pod := v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				otterizev1alpha3.OtterizeServerLabelKey: formattedTargetServer,
+			},
+			Name:      "example-pod",
+			Namespace: ns,
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Ports: []v1.ContainerPort{
+						{
+							ContainerPort: 8000,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	netAuth := &authpolicy.NetworkAuthentication{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy.linkerd.io/v1alpha1",
+			Kind:       "NetworkAuthentication",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      NetworkAuthenticationNameTemplate,
+			Namespace: intents.Namespace,
+			Labels: map[string]string{
+				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
+			},
+		},
+		Spec: authpolicy.NetworkAuthenticationSpec{
+			Networks: []*authpolicy.Network{
+				{
+					Cidr: "0.0.0.0/0",
+				},
+				{
+					Cidr: "::0",
+				},
+			},
+		},
+	}
+
+	mtlsAuth := &authpolicy.MeshTLSAuthentication{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy.linkerd.io/v1alpha1",
+			Kind:       "MeshTLSAuthentication",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf(OtterizeLinkerdMeshTLSNameTemplate, intents.Spec.Service.Name),
+			Namespace: intents.Namespace,
+			Labels: map[string]string{
+				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
+			},
+		},
+		Spec: authpolicy.MeshTLSAuthenticationSpec{
+			Identities: []string{"default.test-namespace.serviceaccount.identity.linkerd.cluster.local"},
+		},
+	}
+
+	server := &linkerdserver.Server{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy.linkerd.io/v1beta1",
+			Kind:       "Server",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "server-for-test-service-port-8000",
+			Namespace: ns,
+			Labels: map[string]string{
+				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
+			},
+		},
+		Spec: linkerdserver.ServerSpec{
+			PodSelector: &podSelector,
+			Port:        intstr.FromInt32(8000),
+		},
+	}
+
+	policy := authpolicy.AuthorizationPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy.linkerd.io/v1alpha1",
+			Kind:       "AuthorizationPolicy",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "authpolicy-to-test-service-port-8000-from-client-service-that-calls-cqh9m2hd",
+			Namespace: intents.Namespace,
+			Labels: map[string]string{
+				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
+			},
+		},
+		Spec: authpolicy.AuthorizationPolicySpec{
+			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+				Group: "policy.linkerd.io",
+				Kind:  v1beta1.Kind("Server"),
+				Name:  v1beta1.ObjectName("server-for-test-service-port-8000"),
+			},
+			RequiredAuthenticationRefs: []gatewayapiv1alpha2.PolicyTargetReference{
+				{
+					Group: "policy.linkerd.io",
+					Kind:  v1beta1.Kind("MeshTLSAuthentication"),
+					Name:  "meshtls-for-client-service-that-calls",
+				},
+			},
+		},
+	}
+
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), client.MatchingLabels{otterizev1alpha3.OtterizeServerLabelKey: formattedTargetServer},
+		client.InNamespace(ns)).Do(func(_ context.Context, podList *v1.PodList, _ ...client.ListOption) {
+		podList.Items = append(podList.Items, pod)
+	})
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
+	s.Client.EXPECT().Create(gomock.Any(), netAuth).Return(nil)
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
+	s.Client.EXPECT().Create(gomock.Any(), mtlsAuth).Return(nil)
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
+	s.Client.EXPECT().Create(gomock.Any(), server)
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
+	s.Client.EXPECT().Create(gomock.Any(), policy)
+
+	_, err := s.admin.createResources(context.Background(), &intents, "default")
+	s.NoError(err)
 }
 
 func (s *LinkerdManagerTestSuite) TestDeleteAll() {
