@@ -3,7 +3,6 @@ package linkerdmanager
 import (
 	"context"
 	"math/rand"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -46,7 +45,7 @@ func generateRandomString(length int, seed ...int64) string {
 	if len(seed) > 0 {
 		rand.Seed(seed[0])
 	} else {
-		rand.Seed(time.Now().UnixNano())
+		rand.Seed(8279)
 	}
 
 	b := make([]byte, length)
