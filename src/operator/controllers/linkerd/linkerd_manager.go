@@ -15,6 +15,7 @@ import (
 	"github.com/otterize/intents-operator/src/shared/serviceidresolver"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gatewayapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -378,7 +379,7 @@ func (ldm *LinkerdManager) createResources(
 
 			switch intent.Type {
 			case otterizev1alpha3.IntentTypeHTTP:
-				probePath, err := ldm.getLivenessProbePath(ctx, *clientIntents, intent)
+				probePath, err := ldm.getLivenessProbePath(ctx, *clientIntents, pod) // should be get livenessprobepath for container with port
 				if err != nil {
 					return nil, err
 				}
@@ -545,11 +546,7 @@ func (ldm *LinkerdManager) createIntentPrimaryResources(ctx context.Context,
 }
 
 func (ldm *LinkerdManager) getLivenessProbePath(ctx context.Context, intents otterizev1alpha3.ClientIntents,
-	intent otterizev1alpha3.Intent) (string, error) {
-	pod, err := ldm.serviceIdResolver.ResolveIntentServerToPod(ctx, intent, intents.Namespace)
-	if err != nil {
-		return "", err
-	}
+	pod corev1.Pod) (string, error) {
 	// TODO: check of the other probe types will break
 	for _, c := range pod.Spec.Containers {
 		if c.Name != LinkerdContainer {
