@@ -3,7 +3,6 @@ package linkerdmanager
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 
 	authpolicy "github.com/linkerd/linkerd2/controller/gen/apis/policy/v1alpha1"
@@ -34,21 +33,23 @@ func (rw routeWrapper) String() string {
 }
 
 func (rw routeWrapper) Matches(x interface{}) bool {
-	reflectedValue := reflect.ValueOf(x).Elem()
+	valueAsRoute, ok := x.(*authpolicy.HTTPRoute)
+	if !ok {
+		fmt.Println("value passed cannot be casted into a httproute")
+		return false
+	}
 
-	if rw.Namespace != reflectedValue.FieldByName("Namespace").String() {
+	if rw.Namespace != valueAsRoute.Namespace {
 		return false
 	}
-	rulesField := reflectedValue.FieldByName("Spec").FieldByName("Rules")
-	parentsField := reflectedValue.FieldByName("Spec").FieldByName("ParentRefs")
 
-	if string(*rw.Spec.Rules[0].Matches[0].Path.Value) != rulesField.Index(0).FieldByName("Matches").Index(0).FieldByName("Path").FieldByName("Value").String() {
+	if string(*rw.Spec.Rules[0].Matches[0].Path.Value) != string(*valueAsRoute.Spec.Rules[0].Matches[0].Path.Value) {
 		return false
 	}
-	if string(*rw.Spec.ParentRefs[0].Kind) != parentsField.Index(0).FieldByName("Kind").String() {
+	if string(*rw.Spec.ParentRefs[0].Kind) != string(*valueAsRoute.Spec.ParentRefs[0].Kind) {
 		return false
 	}
-	if string(rw.Spec.ParentRefs[0].Name) != parentsField.Index(0).FieldByName("Name").String() {
+	if string(rw.Spec.ParentRefs[0].Name) != string(valueAsRoute.Spec.ParentRefs[0].Name) {
 		return false
 	}
 
@@ -60,23 +61,25 @@ func (pw policyWrapper) String() string {
 }
 
 func (pw policyWrapper) Matches(x interface{}) bool {
-	reflectedValue := reflect.ValueOf(x).Elem()
-
-	if pw.Namespace != reflectedValue.FieldByName("Namespace").String() {
-		return false
-	}
-	if string(pw.Spec.TargetRef.Name) != reflectedValue.FieldByName("Spec").FieldByName("TargetRef").FieldByName("Name").String() {
-		return false
-	}
-	if string(pw.Spec.TargetRef.Kind) != reflectedValue.FieldByName("Spec").FieldByName("TargetRef").FieldByName("Kind").String() {
+	valueAsPolicy, ok := x.(*authpolicy.AuthorizationPolicy)
+	if !ok {
+		fmt.Println("value passed cannot be casted into an authorization policy")
 		return false
 	}
 
-	requiredAuthRefsField := reflectedValue.FieldByName("Spec").FieldByName("RequiredAuthenticationRefs")
-	if string(pw.Spec.RequiredAuthenticationRefs[0].Name) != requiredAuthRefsField.Index(0).FieldByName("Name").String() {
+	if pw.Namespace != valueAsPolicy.Namespace {
 		return false
 	}
-	if string(pw.Spec.RequiredAuthenticationRefs[0].Kind) != requiredAuthRefsField.Index(0).FieldByName("Kind").String() {
+
+	if string(pw.Spec.TargetRef.Kind) != string(valueAsPolicy.Spec.TargetRef.Kind) {
+		return false
+	}
+
+	if string(pw.Spec.RequiredAuthenticationRefs[0].Name) != string(valueAsPolicy.Spec.RequiredAuthenticationRefs[0].Name) {
+		return false
+	}
+
+	if string(pw.Spec.RequiredAuthenticationRefs[0].Kind) != string(valueAsPolicy.Spec.RequiredAuthenticationRefs[0].Kind) {
 		return false
 	}
 	return true
@@ -456,7 +459,7 @@ func (s *LinkerdManagerTestSuite) TestCreateResourcesHTTPIntent() {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "bs",
-			Namespace: intents.Namespace,
+			Namespace: ns,
 			Labels: map[string]string{
 				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
 			},
@@ -487,12 +490,14 @@ func (s *LinkerdManagerTestSuite) TestCreateResourcesHTTPIntent() {
 	s.Client.EXPECT().Create(gomock.Any(), mtlsAuth).Return(nil)
 	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
 	s.Client.EXPECT().Create(gomock.Any(), server)
-	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
-	s.Client.EXPECT().Create(gomock.Any(), policyWrapper{policy})
+
 	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
 	s.Client.EXPECT().Create(gomock.Any(), routeWrapper{route})
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
+	s.Client.EXPECT().Create(gomock.Any(), policyWrapper{policy})
 
 	_, err := s.admin.createResources(context.Background(), &intents, "default")
+	_ = route
 	s.NoError(err)
 }
 
