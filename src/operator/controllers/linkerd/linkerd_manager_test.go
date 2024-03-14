@@ -29,6 +29,32 @@ type routeWrapper struct {
 	*authpolicy.HTTPRoute
 }
 
+func (rw routeWrapper) String() string {
+	return fmt.Sprintf("string httproute wrapper")
+}
+
+func (rw routeWrapper) Matches(x interface{}) bool {
+	reflectedValue := reflect.ValueOf(x).Elem()
+
+	if rw.Namespace != reflectedValue.FieldByName("Namespace").String() {
+		return false
+	}
+	rulesField := reflectedValue.FieldByName("Spec").FieldByName("Rules")
+	parentsField := reflectedValue.FieldByName("Spec").FieldByName("ParentRefs")
+
+	if string(*rw.Spec.Rules[0].Matches[0].Path.Value) != rulesField.Index(0).FieldByName("Matches").Index(0).FieldByName("Path").FieldByName("Value").String() {
+		return false
+	}
+	if string(*rw.Spec.ParentRefs[0].Kind) != parentsField.Index(0).FieldByName("Kind").String() {
+		return false
+	}
+	if string(rw.Spec.ParentRefs[0].Name) != parentsField.Index(0).FieldByName("Name").String() {
+		return false
+	}
+
+	return true
+}
+
 func (pw policyWrapper) String() string {
 	return fmt.Sprintf("string policy wrapper")
 }
@@ -464,7 +490,7 @@ func (s *LinkerdManagerTestSuite) TestCreateResourcesHTTPIntent() {
 	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
 	s.Client.EXPECT().Create(gomock.Any(), policyWrapper{policy})
 	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
-	s.Client.EXPECT().Create(gomock.Any(), route)
+	s.Client.EXPECT().Create(gomock.Any(), routeWrapper{route})
 
 	_, err := s.admin.createResources(context.Background(), &intents, "default")
 	s.NoError(err)
