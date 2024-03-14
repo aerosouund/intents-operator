@@ -379,7 +379,7 @@ func (ldm *LinkerdManager) createResources(
 
 			switch intent.Type {
 			case otterizev1alpha3.IntentTypeHTTP:
-				probePath, err := ldm.getLivenessProbePath(ctx, *clientIntents, pod) // should be get livenessprobepath for container with port
+				probePath, err := ldm.getLivenessProbePath(*clientIntents, pod) // should be get livenessprobepath for container with port
 				if err != nil {
 					return nil, err
 				}
@@ -545,7 +545,7 @@ func (ldm *LinkerdManager) createIntentPrimaryResources(ctx context.Context,
 	return nil
 }
 
-func (ldm *LinkerdManager) getLivenessProbePath(ctx context.Context, intents otterizev1alpha3.ClientIntents,
+func (ldm *LinkerdManager) getLivenessProbePath(intents otterizev1alpha3.ClientIntents,
 	pod corev1.Pod) (string, error) {
 	// TODO: check of the other probe types will break
 	for _, c := range pod.Spec.Containers {
