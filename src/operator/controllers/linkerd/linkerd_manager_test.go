@@ -659,6 +659,8 @@ func (s *LinkerdManagerTestSuite) TestDeleteAll() {
 		mtlsauths.Items = append(mtlsauths.Items, *mtlsAuth)
 	}).Return(nil)
 
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any())
+
 	s.Client.EXPECT().Delete(gomock.Any(), policy)
 	s.Client.EXPECT().Delete(gomock.Any(), server)
 	s.Client.EXPECT().Delete(gomock.Any(), route)
