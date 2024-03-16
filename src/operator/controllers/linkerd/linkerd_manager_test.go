@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	authpolicy "github.com/linkerd/linkerd2/controller/gen/apis/policy/v1alpha1"
 	linkerdserver "github.com/linkerd/linkerd2/controller/gen/apis/server/v1beta1"
@@ -503,13 +502,11 @@ func (s *LinkerdManagerTestSuite) TestCreateResourcesHTTPIntent() {
 
 func (s *LinkerdManagerTestSuite) TestDeleteAll() {
 	ns := "test-namespace"
-	deletionDate := time.Date(1960, time.March, 0, 0, 0, 0, 0, time.UTC)
 
 	intents := otterizev1alpha3.ClientIntents{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:              "intents-object",
-			Namespace:         ns,
-			DeletionTimestamp: &metav1.Time{deletionDate},
+			Name:      "intents-object",
+			Namespace: ns,
 		},
 		Spec: &otterizev1alpha3.IntentsSpec{
 			Service: otterizev1alpha3.Service{Name: "service-that-calls"},
@@ -659,13 +656,13 @@ func (s *LinkerdManagerTestSuite) TestDeleteAll() {
 		mtlsauths.Items = append(mtlsauths.Items, *mtlsAuth)
 	}).Return(nil)
 
-	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any())
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
 
-	s.Client.EXPECT().Delete(gomock.Any(), policy)
-	s.Client.EXPECT().Delete(gomock.Any(), server)
-	s.Client.EXPECT().Delete(gomock.Any(), route)
-	s.Client.EXPECT().Delete(gomock.Any(), netAuth)
-	s.Client.EXPECT().Delete(gomock.Any(), mtlsAuth)
+	s.Client.EXPECT().Delete(gomock.Any(), policy).Return(nil)
+	s.Client.EXPECT().Delete(gomock.Any(), server).Return(nil)
+	s.Client.EXPECT().Delete(gomock.Any(), route).Return(nil)
+	s.Client.EXPECT().Delete(gomock.Any(), netAuth).Return(nil)
+	s.Client.EXPECT().Delete(gomock.Any(), mtlsAuth).Return(nil)
 
 	err := s.admin.DeleteAll(context.Background(), &intents)
 	s.NoError(err)
