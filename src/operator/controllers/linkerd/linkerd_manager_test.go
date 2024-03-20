@@ -101,54 +101,6 @@ func (s *LinkerdManagerTestSuite) TearDownTest() {
 	s.MocksSuiteBase.TearDownTest()
 }
 
-func (s *LinkerdManagerTestSuite) TestShouldntCreateServer() {
-	ns := "test-namespace"
-	var port int32 = 3000
-
-	intentsSpec := &otterizev1alpha3.IntentsSpec{
-		Service: otterizev1alpha3.Service{Name: "service-that-calls"},
-		Calls: []otterizev1alpha3.Intent{
-			{
-				Name: "test-service",
-			},
-		},
-	}
-
-	intents := otterizev1alpha3.ClientIntents{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-intents-object",
-			Namespace: ns,
-		},
-		Spec: intentsSpec,
-	}
-
-	podSelector := s.admin.BuildPodLabelSelectorFromIntent(intents.Spec.Calls[0], intents.Namespace)
-	serversList := &linkerdserver.ServerList{
-		Items: []linkerdserver.Server{
-			{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "policy.linkerd.io/v1beta1",
-					Kind:       "Server",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "server-for-test-service-port-3000",
-					Namespace: ns,
-				},
-				Spec: linkerdserver.ServerSpec{
-					PodSelector: &podSelector,
-					Port:        intstr.FromInt32(port),
-				},
-			},
-		},
-	}
-
-	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Do(func(_ context.Context, emptyServersList *linkerdserver.ServerList, _ ...client.ListOption) {
-		emptyServersList.Items = append(emptyServersList.Items, serversList.Items...)
-	}).Return(nil)
-	_, shouldCreateServer, _ := s.admin.shouldCreateServer(context.Background(), intents, intents.Spec.Calls[0], port)
-	s.Equal(false, shouldCreateServer)
-}
-
 func (s *LinkerdManagerTestSuite) TestCreateResourcesNonHTTPIntent() {
 	ns := "test-namespace"
 
@@ -657,7 +609,6 @@ func (s *LinkerdManagerTestSuite) TestDeleteAll() {
 	}).Return(nil)
 
 	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
-
 	s.Client.EXPECT().Delete(gomock.Any(), policy).Return(nil)
 	s.Client.EXPECT().Delete(gomock.Any(), server).Return(nil)
 	s.Client.EXPECT().Delete(gomock.Any(), route).Return(nil)
@@ -670,7 +621,185 @@ func (s *LinkerdManagerTestSuite) TestDeleteAll() {
 
 // test shouldnt create route
 
+func (s *LinkerdManagerTestSuite) TestShouldntCreateRoute() {
+	ns := "test-namespace"
+	parentServerName := "server-for-test-service-port-8000"
+
+	intentsSpec := &otterizev1alpha3.IntentsSpec{
+		Service: otterizev1alpha3.Service{Name: "service-that-calls"},
+		Calls: []otterizev1alpha3.Intent{
+			{
+				Name: "test-service",
+			},
+		},
+	}
+
+	intents := otterizev1alpha3.ClientIntents{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-intents-object",
+			Namespace: ns,
+		},
+		Spec: intentsSpec,
+	}
+
+	routes := &authpolicy.HTTPRouteList{
+		Items: []authpolicy.HTTPRoute{
+			{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "policy.linkerd.io/v1beta1",
+					Kind:       "HTTPRoute",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "some-route",
+					Namespace: ns,
+				},
+				Spec: authpolicy.HTTPRouteSpec{
+					CommonRouteSpec: v1beta1.CommonRouteSpec{
+						ParentRefs: []v1beta1.ParentReference{
+							{
+								Group: (*v1beta1.Group)(StringPtr("policy.linkerd.io")),
+								Kind:  (*v1beta1.Kind)(StringPtr("Server")),
+								Name:  v1beta1.ObjectName(parentServerName),
+							},
+						},
+					},
+					Rules: []authpolicy.HTTPRouteRule{
+						{
+							Matches: []authpolicy.HTTPRouteMatch{
+								{
+									Path: &authpolicy.HTTPPathMatch{
+										Type:  getPathMatchPointer(authpolicy.PathMatchPathPrefix),
+										Value: StringPtr("/api"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Do(func(_ context.Context, routeList *authpolicy.HTTPRouteList, _ ...client.ListOption) {
+		routeList.Items = append(routeList.Items, routes.Items...)
+	}).Return(nil)
+	_, shouldCreateRoute, err := s.admin.shouldCreateHTTPRoute(context.Background(), intents, "/api", parentServerName)
+	s.Equal(false, shouldCreateRoute)
+	s.NoError(err)
+
+}
+
 // test shouldnt create policy
+
+func (s *LinkerdManagerTestSuite) TestShouldntCreatePolicy() {
+	ns := "test-namespace"
+	targetServer := "server-for-test-service-port-8000"
+	mtlsAuthName := "meshtls-for-client-service-that-calls"
+
+	intentsSpec := &otterizev1alpha3.IntentsSpec{
+		Service: otterizev1alpha3.Service{Name: "service-that-calls"},
+		Calls: []otterizev1alpha3.Intent{
+			{
+				Name: "test-service",
+			},
+		},
+	}
+
+	intents := otterizev1alpha3.ClientIntents{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-intents-object",
+			Namespace: ns,
+		},
+		Spec: intentsSpec,
+	}
+
+	policies := &authpolicy.AuthorizationPolicyList{
+		Items: []authpolicy.AuthorizationPolicy{
+			{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "policy.linkerd.io/v1beta1",
+					Kind:       "AuthorizationPolicy",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "some-route",
+					Namespace: ns,
+				},
+				Spec: authpolicy.AuthorizationPolicySpec{
+					TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+						Group: "policy.linkerd.io",
+						Kind:  v1beta1.Kind(LinkerdServerKindName),
+						Name:  v1beta1.ObjectName(targetServer),
+					},
+					RequiredAuthenticationRefs: []gatewayapiv1alpha2.PolicyTargetReference{
+						{
+							Group: "policy.linkerd.io",
+							Kind:  v1beta1.Kind(LinkerdMeshTLSAuthenticationKindName),
+							Name:  v1beta1.ObjectName(mtlsAuthName),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Do(func(_ context.Context, policyList *authpolicy.AuthorizationPolicyList, _ ...client.ListOption) {
+		policyList.Items = append(policyList.Items, policies.Items...)
+	}).Return(nil)
+	_, shouldCreatePolicy, err := s.admin.shouldCreateAuthPolicy(context.Background(), intents, targetServer, LinkerdServerKindName, mtlsAuthName, LinkerdMeshTLSAuthenticationKindName)
+	s.Equal(false, shouldCreatePolicy)
+	s.NoError(err)
+}
+
+func (s *LinkerdManagerTestSuite) TestShouldntCreateServer() {
+	ns := "test-namespace"
+	var port int32 = 3000
+
+	intentsSpec := &otterizev1alpha3.IntentsSpec{
+		Service: otterizev1alpha3.Service{Name: "service-that-calls"},
+		Calls: []otterizev1alpha3.Intent{
+			{
+				Name: "test-service",
+			},
+		},
+	}
+
+	intents := otterizev1alpha3.ClientIntents{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-intents-object",
+			Namespace: ns,
+		},
+		Spec: intentsSpec,
+	}
+
+	podSelector := s.admin.BuildPodLabelSelectorFromIntent(intents.Spec.Calls[0], intents.Namespace)
+	serversList := &linkerdserver.ServerList{
+		Items: []linkerdserver.Server{
+			{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "policy.linkerd.io/v1beta1",
+					Kind:       "Server",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "server-for-test-service-port-3000",
+					Namespace: ns,
+				},
+				Spec: linkerdserver.ServerSpec{
+					PodSelector: &podSelector,
+					Port:        intstr.FromInt32(port),
+				},
+			},
+		},
+	}
+
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Do(func(_ context.Context, emptyServersList *linkerdserver.ServerList, _ ...client.ListOption) {
+		emptyServersList.Items = append(emptyServersList.Items, serversList.Items...)
+	}).Return(nil)
+	_, shouldCreateServer, err := s.admin.shouldCreateServer(context.Background(), intents, intents.Spec.Calls[0], port)
+	s.Equal(false, shouldCreateServer)
+	s.NoError(err)
+}
+
+// test multiport
 
 // test remove outdated resources
 
