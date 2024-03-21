@@ -935,12 +935,66 @@ func (s *LinkerdManagerTestSuite) TestDeleteOutdatedResources() {
 		},
 	}
 
-	/*
-		list calles that return outdated resources
-		- policies
-		- servers
-		- routes
-	*/
+	oldPolicy := &authpolicy.AuthorizationPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy.linkerd.io/v1alpha1",
+			Kind:       "AuthorizationPolicy",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "very-ancient-policy-that-is-so-outdated",
+			Namespace: intents.Namespace,
+			UID:       "44445555-6666-7777-8888-9999aaaabbbb",
+			Labels: map[string]string{
+				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
+			},
+		},
+		Spec: authpolicy.AuthorizationPolicySpec{
+			TargetRef: gatewayapiv1alpha2.PolicyTargetReference{
+				Group: "policy.linkerd.io",
+				Kind:  v1beta1.Kind("Server"),
+				Name:  v1beta1.ObjectName("very-ancient-server"),
+			},
+			RequiredAuthenticationRefs: []gatewayapiv1alpha2.PolicyTargetReference{
+				{
+					Group: "policy.linkerd.io",
+					Kind:  v1beta1.Kind("MeshTLSAuthentication"),
+					Name:  "meshtls-for-client-service-that-calls",
+				},
+			},
+		},
+	}
+
+	oldServer := &linkerdserver.Server{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "policy.linkerd.io/v1beta1",
+			Kind:       "Server",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "very-ancient-server",
+			Namespace: ns,
+			UID:       "aaabbbcc-dddd-eeee-ffff-111122223333",
+			Labels: map[string]string{
+				otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity,
+			},
+		},
+		Spec: linkerdserver.ServerSpec{
+			PodSelector: &podSelector,
+			Port:        intstr.FromInt32(420),
+		},
+	}
+
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(),
+		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity}).Do(func(_ context.Context, policies *authpolicy.AuthorizationPolicyList, _ ...client.ListOption) {
+		policies.Items = append(policies.Items, *oldPolicy)
+	}).Return(nil)
+
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(),
+		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity}).Do(func(_ context.Context, servers *linkerdserver.ServerList, _ ...client.ListOption) {
+		servers.Items = append(servers.Items, *oldServer)
+	}).Return(nil)
+
+	s.Client.EXPECT().List(gomock.Any(), gomock.Any(),
+		client.MatchingLabels{otterizev1alpha3.OtterizeLinkerdServerAnnotationKey: linkerdServerServiceFormattedIdentity}).Return(nil)
 
 	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any()).Do(func(_ context.Context, podList *v1.PodList, _ ...client.ListOption) {
@@ -955,15 +1009,14 @@ func (s *LinkerdManagerTestSuite) TestDeleteOutdatedResources() {
 	s.Client.EXPECT().List(gomock.Any(), gomock.Any(), &client.ListOptions{Namespace: ns}).Return(nil)
 	s.Client.EXPECT().Create(gomock.Any(), policyWrapper{policy})
 
-	// delete calls
+	s.Client.EXPECT().Delete(gomock.Any(), oldPolicy).Return(nil)
+	s.Client.EXPECT().Delete(gomock.Any(), oldServer).Return(nil)
 
 	err := s.admin.Create(context.Background(), &intents, "default")
 	s.NoError(err)
 }
 
 // test multiport
-
-// test remove outdated resources
 
 func TestLinkerdManagerTestSuite(t *testing.T) {
 	suite.Run(t, new(LinkerdManagerTestSuite))
