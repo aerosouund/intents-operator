@@ -1302,8 +1302,6 @@ func (s *LinkerdManagerTestSuite) TestDeleteOutdatedResources() {
 	s.NoError(err)
 }
 
-// test multiport
-
 func TestLinkerdManagerTestSuite(t *testing.T) {
 	suite.Run(t, new(LinkerdManagerTestSuite))
 }
