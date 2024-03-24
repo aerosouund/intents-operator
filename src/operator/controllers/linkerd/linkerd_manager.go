@@ -45,13 +45,11 @@ const (
 	LinkerdServerKindName                             = "Server"
 	LinkerdHTTPRouteKindName                          = "HTTPRoute"
 	LinkerdNetAuthKindName                            = "NetworkAuthentication"
-	Servers                                           = "servers"
-	Routes                                            = "httproutes"
-	AuthorizationPolicies                             = "authpolicies"
-	MTLSAuthentications                               = "mtlsauth"
-	NetworkAuthentications                            = "netauth"
 	LinkerdContainer                                  = "linkerd-proxy"
 )
+
+//+kubebuilder:rbac:groups="policy.linkerd.io",resources=*,verbs=get;update;patch;list;watch;delete;create;deletecollection
+//+kubebuilder:rbac:groups=k8s.otterize.com,resources=clientintents,verbs=get;list;watch;create;update;patch;delete
 
 type LinkerdPolicyManager interface {
 	DeleteAll(ctx context.Context, clientIntents *otterizev1alpha3.ClientIntents) error
